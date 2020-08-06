@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This Cloud Formation template create a KMS Key and attach the related roles to manage it
+
+Parameters:
+
+  pCostCenter:
+    Description: Centro Costos del proyecto.
+    Type: String
+    Default: c103500025
+
+  pPMO:
+    Description: Pmo de proyecto
+    Type: String
+    Default: pmo30686
+
+  pAWSKeyManagementServicePowerUser:
+    Description: Key use for
+    Type: String
+    Default: arn:aws:iam::aws:policy/AWSKeyManagementServicePowerUser
+
+  pBussiness:
+    Description: Unidad de Negocio de la de la aplicacion.
+    Type: String
+    Default: tesoreria
+
+  pProjectName:
+    Description: Name of the project
+    Type: String
+    Default: murex-core
+
+  pApplicationCode:
+    Description: The application code
+    Type: String
+    Default: aw0434001
+
+  pEnvironment:
+    Description: Environment where it unfolds.
+    Type: String
+
+  pSharedAccountNumber:
+      Description: number share AccountId'
+      Type: String
+      Default: "763669947983"
+
+Resources:
+  rIAMRoleForKMS:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join ["-", [!Ref 'AWS::StackName', "role"]]
+      ManagedPolicyArns:
+        - !Ref pAWSKeyManagementServicePowerUser
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - cks.kms.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+
+  rKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Ref 'AWS::StackName'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: key-policy
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Join ["", ["arn:aws:iam::", !Ref 'AWS::AccountId',":root"]]
+            Action:
+              - "kms:*"
+            Resource: '*'
+          - Sid: Allow key admin
+            Effect: Allow
+            Principal:
+              AWS:
+              - !GetAtt rIAMRoleForKMS.Arn
+            Action:
+              - "kms:Create*"
+              - "kms:Describe*"
+              - "kms:Enable*"
+              - "kms:List*"
+              - "kms:Put*"
+              - "kms:Update*"
+              - "kms:Revoke*"
+              - "kms:Disable*"
+              - "kms:Get*"
+              - "kms:Delete*"
+              - "kms:ScheduleKeyDeletion"
+              - "kms:CancelKeyDeletion"
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS:
+              - !GetAtt rIAMRoleForKMS.Arn
+              - !Join [ "", [ 'arn:aws:iam::', !Ref pSharedAccountNumber, ':root']]
+            Action:
+            - kms:Encrypt
+            - kms:Decrypt
+            - kms:ReEncrypt*
+            - kms:GenerateDataKey*
+            - kms:DescribeKey
+            - kms:Update*
+            - kms:CreateGrant
+            - kms:ListGrants
+            - kms:RevokeGrant
+
+            Resource: "*"
+
+  rKmsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Join ["-", ["alias/", !Ref 'pApplicationCode', !Ref 'pProjectName', !Ref pEnvironment, "kms"]]
+      TargetKeyId: !Ref rKmsKey
+
+  rKMSLatestARN:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: !Join [ '', [ '/', !Ref pApplicationCode, '/', !Ref pProjectName, '/', !Ref pEnvironment, '/', 'kms-arn-latest'  ] ]
+      Type: "String"
+      Value:
+        Fn::GetAtt: rKmsKey.Arn
+      Description: !Join [ '',  [ 'Ultima KMS en el ambiente de ', !Ref pEnvironment , ' para la aplicacion ', !Ref pApplicationCode, '-',  !Ref pProjectName, ' '] ]
+
+Outputs:
+  rKmsKey:
+    Description: kmsKey
+    Value:
+       Ref: rKmsKey
+    Export:
+      Name: !Ref 'AWS::StackName'

@@ -1,0 +1,72 @@
+trigger:
+  branches:
+    include:
+      - cloud_aw000_alineacion/*
+
+variables:
+
+  cloudformation-template: '$(System.DefaultWorkingDirectory)/template.yaml'
+  cloudformation-params: '$(System.DefaultWorkingDirectory)/params.json'
+
+stages:
+
+  - stage: deploy_dev
+    displayName: Deploy DEV
+    variables:
+      - group: alineacion-ec2
+
+    jobs:
+      - job: template_linterns
+        pool: 
+          vmImage: ubuntu-20.04
+          # prueba-serenity-report 
+          # name: prueba-serenity-report
+          # demands:
+          #   - agent.name -equals agent-prueba-serenity-report
+
+        displayName: Validate Template
+        steps:
+          - task: AWSCLI@1
+            inputs:
+              awsCredentials: 'alineacionAWS'
+              regionName: 'us-east-1'
+              awsCommand: 'dynamodb'
+              awsSubCommand: 'list-tables'
+          - task: AWSShellScript@1 ## camnbiar a powershell
+            inputs:
+              awsCredentials: 'alineacionAWS'
+              regionName: 'us-east-1'
+              scriptType: 'inline' ## Buscar que es
+              inlineScript: 'aws cloudformation validate-template --template-body file://$(cloudformation-template)'
+
+          
+
+      - job: cloudformation_creation
+        pool: 
+          vmImage: ubuntu-20.04
+          # name: prueba-serenity-report
+          # demands:
+          #   - agent.name -equals agent-prueba-serenity-report
+        steps:
+
+          - task: replacetokens@3
+            displayName:  Cambiar parametros
+            inputs:
+              rootDirectory: '$(System.DefaultWorkingDirectory)' ## Revisar si se puede quitar
+              targetFiles: '$(cloudformation-params)'
+              encoding: 'auto' ## revisar
+              writeBOM: true
+              actionOnMissing: 'continue'
+              keepToken: false
+              tokenPrefix: '#{'
+              tokenSuffix: '}#'
+
+          - task: CloudFormationCreateOrUpdateStack@1
+            inputs:
+              awsCredentials: 'alineacionAWS'
+              regionName: 'us-east-1' 
+              stackName: 'pruebaserviceconnection'
+              templateSource: 'file'
+              templateFile: '$(cloudformation-template)'
+              templateParametersFile: '$(System.DefaultWorkingDirectory)/params.json'
+

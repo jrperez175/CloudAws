@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Cloud Formation para crear disco EFS
+
+Parameters:
+
+  pApplicationCode:
+    Description: Codigo de la aplicacion.
+    Type: String
+    Default: aw0434001
+
+  pBussiness:
+    Description: Unidad de Negocio de la de la aplicacion.
+    Type: String
+    Default: tesoreria
+
+
+  pCostCenter:
+    Description: Centro Costos del proyecto.
+    Type: String
+    Default: c103500025
+
+  pEnvironment:
+    Description: EFS de ambiente a desplegar
+    Type: String
+    Default: dev
+    AllowedValues:
+        - dev
+        - qa
+        - pdn
+
+  pPMO:
+    Description: Pmo de proyecto
+    Type: String
+    Default: pmo30686
+
+  pProjectName:
+    Description: Nombre del proyecto.
+    Type: String
+    Default: murex-core
+#.-------------------------------------------------
+  pPrivateSubnet1:
+    Description: Subred de las instancias donde quedara el disco
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-073e21f46f63c0c97
+
+  pPrivateSubnet2:
+    Description: Subred alternativa (en otra zona) para HA del ambiente
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0f533a295995e6b3c
+
+  pKMSKeyId:
+    Description: Llave KMS para encripcion de discos (varia entre cuentas AWS)
+    Type : AWS::SSM::Parameter::Value<String>
+    Default: "/aw0434001/murex-core/dev/kms-arn-latest"
+
+
+Resources:
+
+  rEFSDisk:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      Encrypted: true
+      KmsKeyId: !Ref pKMSKeyId
+      FileSystemTags:
+      - Key: bancolombia:info-activos
+        Value: "Si"
+      - Key: bancolombia:clasificacion-confidencialidad
+        Value: "Interna"
+      - Key: bancolombia:clasificacion-integridad
+        Value: "Impacto Tolerable"
+      - Key: bancolombia:clasificacion-disponibilidad
+        Value: "Impacto Tolerable"
+      - Key: Name
+        Value: !Join ["", [Ref: "AWS::StackName"]]
+
+  rEFSMountTargetPrimary:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: rEFSDisk
+      SubnetId:
+        Ref: pPrivateSubnet1
+      SecurityGroups:
+        - Fn::ImportValue:
+            Fn::Join: ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, "sg-efs"]]
+
+  rEFSMountTargetAlternative:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: rEFSDisk
+      SubnetId:
+        Ref: pPrivateSubnet2
+      SecurityGroups:
+        - Fn::ImportValue:
+            Fn::Join: ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, "sg-efs"]]
+
+  rEFSLatestDNS:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: !Join [ '', [ '/', !Ref pApplicationCode, '/', !Ref pProjectName, '/', !Ref pEnvironment, '/', 'efs-dns-latest'  ] ]
+      Type: "String"
+      Value:
+        Fn::Join: ["", [!Ref 'rEFSDisk', ".efs.us-east-1.amazonaws.com"]]
+      Description: !Join [ '',  [ 'Ultimo DNS del EFS en el ambiente de ', !Ref pEnvironment , ' para la aplicacion ', !Ref pApplicationCode, '-',  !Ref pProjectName, ' '] ]
+      Tags:
+        "Environment": !Ref pEnvironment
+
+
+Outputs:
+  url:
+    Description: Se ha creado el disco EFS para configurar en las instancias murex
+    Value: !Ref rEFSDisk

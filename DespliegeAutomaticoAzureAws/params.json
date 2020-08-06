@@ -1,0 +1,7 @@
+[
+    {
+        "ParameterKey": "pIdImage",
+        "ParameterValue":"#{id-instance}#"
+
+    }
+]

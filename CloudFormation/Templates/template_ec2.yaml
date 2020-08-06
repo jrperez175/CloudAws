@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ' EC2 orquestador Murex Piloto '
+
+############################## Parameters ####################################################
+
+Parameters:
+
+  pApplicationCode:
+    Description: Codigo de la aplicacion.
+    Type: String
+    Default: aw0434001
+
+  pCostCenter:
+    Description: Centro Costos del proyecto.
+    Type: String
+    Default: c103500025
+
+  pPMO:
+    Description: Pmo de proyecto
+    Type: String
+    Default: pmo30686
+
+  pBussiness:
+    Description: Unidad de Negocio de la de la aplicacion.
+    Type: String
+    Default: tesoreria
+
+  pProjectName:
+    Description: Nombre del proyecto.
+    Type: String
+    Default: murex-core
+
+  pEnvironment:
+    Description: Environment where it unfolds.
+    Type: String
+    Default: dev
+
+  pInstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t2.micro
+
+  pImageId:
+    Description: EC2 Instance AMI
+    Type: AWS::EC2::Image::Id
+    Default: ami-0d97f32f18005430c
+
+  pInstanceVpcId:
+    Description: The VPC of the worker instances
+    Type: AWS::EC2::VPC::Id
+
+  pInstanceSubnet:
+    Description: The subnets where workers can be created.
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-073e21f46f63c0c97
+
+pKMSKeyId:
+    Description: The ARN of the AWS Key Management Service (AWS KMS)
+    Type : AWS::SSM::Parameter::Value<String>
+    Default: "/aw0434001/murex-core/dev/kms-arn-latest"  
+
+
+Resources:
+######################### Resources EC2#############################
+
+#Se crea un recurso de politicas particular y se agrega a un rol
+
+rKMSPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+            - kms:Decrypt
+            - kms:Encrypt
+            - kms:GetKeyPolicy
+          Resource: !Ref pKMSKeyId
+      PolicyName: "KMS-Policy"
+      Roles: 
+        - Ref: rec2Role
+
+  rec2Role:
+      Type: AWS::IAM::Role
+      Properties:
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        
+      
+        AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service: ec2.amazonaws.com
+                Action:
+                  - "sts:AssumeRole"
+        RoleName: !Join ["-", [!Ref 'AWS::StackName' , "murex-role-instanceProfile"]]         
+        #Policies: Politica personalizada otra forma
+        # - PolicyDocument:
+        #     Version: 2012-10-17
+        #     Statement:
+        #       - Action:
+        #         - s3:GetObject
+        #         Resource: arn:aws:s3:::${pBucketFile}/*
+        #         Effect: Allow
+        #   PolicyName: allow-download-from-bucket
+        # - PolicyDocument:
+        #       Version: 2012-10-17
+        #       Statement:
+        #         - Action:
+        #           - kms:Decrypt
+        #           - kms:Encrypt
+        #           - kms:GetKeyPolicy
+        #           - kms:DescribeKey
+        #           Resource: !Ref pKMSKeyId
+        #           Effect: Allow
+        #     PolicyName: allow-get-objects-BucketFile-to-EC2-KMS
+        Tags:
+          -
+            Key: bancolombia:application-code
+            Value: !Ref pApplicationCode
+          -
+            Key: bancolombia:project-name	
+            Value: !Ref pProjectName
+          -
+            Key: bancolombia:environment
+            Value: !Ref pEnvironment
+          -
+            Key: bancolombia:cost-center	
+            Value: !Ref pCostCenter
+          -
+            Key: bancolombia:pmo
+            Value: !Ref pPMO
+          -
+            Key: bancolombia:business-service	
+            Value: !Ref pBussiness
+          -
+            Key: Name
+            Value: !Join ["-", [!Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, ec2-request]]   
+
+
+  rInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: [!Ref rec2Role]
+
+  rEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "false"
+          DeviceIndex: "0"
+          GroupSet: 
+            - Fn::ImportValue: !Join ["-", [ Ref: pApplicationCode, Ref: pProjectName, Ref: pEnvironment, "sg-ec2" ]]
+          SubnetId: 
+            Ref: pInstanceSubnet
+      InstanceType: !Ref pInstanceType
+      ImageId: !Ref pImageId
+      IamInstanceProfile: !Ref rInstanceProfile
+
+      Tags:
+        -
+          Key: bancolombia:application-code
+          Value: !Ref pApplicationCode
+        -
+          Key: bancolombia:project-name	
+          Value: !Ref pProjectName
+        -
+          Key: bancolombia:environment
+          Value: !Ref pEnvironment
+        -
+          Key: bancolombia:cost-center	
+          Value: !Ref pCostCenter
+        -
+          Key: bancolombia:pmo
+          Value: !Ref pPMO
+        -
+          Key: bancolombia:business-service	
+          Value: !Ref pBussiness
+        -
+          Key: Name
+          Value: !Join ["-", [!Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, ec2-request]] 
+
+
+
