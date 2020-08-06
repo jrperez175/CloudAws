@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: 2010-09-09 
+
+Description: Lab 0a Template Basico.
+
+
+Resources:
+  
+  rBucketS31:
+    Type: AWS::S3::Bucket
+  
+  
+  rBucketS32:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: jrperez175bucketejemploparacloudformation
+  
+    
+ 
+ rWebServerInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-05bb2dae0b1de90b3

@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lab 02 Parameters- Intrinsic Functions .
+
+Parameters:
+  pNombreBucket:
+    Type: String
+    Description: Nombre variable para el Bucket
+    Default: buckets3jrperez175
+
+  pInstanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+    #Description: 'Enter t2.micro or t2.small. Default is t2.micro.'
+    ConstraintDescription: 'Specify either Dev, Test or Prod.'
+
+  pAmiID:
+    Type: AWS::EC2::Image::Id
+    Description: 'The ID of the AMI.'
+    Default: ami-0ac80df6eff0e70b5
+
+
+Resources:
+  rBucketS32:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref pNombreBucket
+
+  rWebServerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref pInstanceType
+      ImageId: !Ref pAmiID
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [ !Ref pInstanceType, webserver ] ]
+        - Key: InstanceType
+          Value: !Sub ${pInstanceType}
+
+
+

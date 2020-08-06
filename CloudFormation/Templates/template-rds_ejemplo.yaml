@@ -1,0 +1,259 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template deploys an Amazon RDS for Oracle instance
+
+Parameters:
+
+  pSnapshotIdentifier:
+    Description: Use the snapshot for the RDS.
+    Type: String
+
+  pEnvironment:
+    Description: EFS de ambiente a desplegar
+    Type: String
+    AllowedValues:
+        - dev
+        - qa
+        - pdn
+
+  pKMSKeyId:
+    Description: The ARN of the AWS Key Management Service (AWS KMS)
+    Type : AWS::SSM::Parameter::Value<String>
+    Default: "/aw0434001/murex-core/dev/kms-arn-latest"
+
+  pPrivateSubnetDB1:
+    Description: ID of private subnet BD 1.
+    Type: AWS::EC2::Subnet::Id
+
+  pPrivateSubnetDB2:
+    Description: ID of private subnet BD 2.
+    Type: AWS::EC2::Subnet::Id
+
+  pDBName:
+    Description: Name of the DB instance.
+    ConstraintDescription: >-
+      Must begin with a letter and contain only
+      alphanumeric characters.
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+
+  pDBInstanceType:
+    Description: Determines the CPU and RAM capacity of an RDS DB instance.
+    Type: String
+
+  pDBEngine:
+    Description: Database engine to be used for this instance.
+    Type: String
+
+  pDBEngineVersion:
+    Description: The version number of the database engine.
+    Type: String
+
+  pDBLicenseModel:
+    Description: License model of the DB instance.
+    Type: String
+
+  pDBStorageType:
+    Description: Which storage instance use?
+    Type: String
+
+  pDBAllocatedStorage:
+    Description: Allocated storage size, specified in gigabytes (GB).
+    ConstraintDescription: Must be an integer from 20 to 32768.
+    Type: Number
+    MinValue: 20
+    MaxValue: 32768
+
+  pDBMaxAllocatedStorage:
+    Description: Storage autoscaling
+    ConstraintDescription: Must be an integer from 20 to 32768.
+    Type: Number
+    MinValue: 20
+    MaxValue: 32768
+
+  pDBStorageEncrypted:
+    Description: Do you want encrypted database instance?
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+
+  pDBBackupRetentionPeriod:
+    Description: >-
+      Number of days during which automatic DB
+      snapshots are retained.
+    ConstraintDescription: Must be between 0 and 35 days.
+    Type: Number
+    MinValue: 0
+    MaxValue: 35
+
+  pDBMultiAZ:
+    Description: Use Multi-AZ ?
+    Type: String
+    AllowedValues: [true, false]
+
+  pApplicationCode:
+    Description: The application code
+    Type: String
+    Default: aw0434001
+
+  pProjectName:
+    Description: Name of the project
+    Type: String
+    Default: murex-core
+
+  pPort:
+    Description: RDS port.
+    Type: String
+    Default: 50000
+
+  pCostCenter:
+    Description: Centro Costos del proyecto.
+    Type: String
+    Default: c103500025
+
+  pPMO:
+    Description: Pmo de proyecto
+    Type: String
+    Default: pmo30686
+
+  pBussiness:
+    Description: Unidad de Negocio de la de la aplicacion.
+    Type: String
+    Default: tesoreria
+
+Conditions:
+
+  emptySnapshot:
+      !Or [!Equals [!Ref pSnapshotIdentifier, ""], !Equals [!Ref pSnapshotIdentifier, "none"] ]
+
+Resources:
+  rDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName:
+        Ref: AWS::StackName
+      DBSubnetGroupDescription:
+        Fn::Join: ["", [SubnetGroup, for, Ref: "AWS::StackName", instances.]]
+      SubnetIds:
+        - Ref: pPrivateSubnetDB1
+        - Ref: pPrivateSubnetDB2
+
+  rDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      LicenseModel:
+        Ref: pDBLicenseModel
+      PubliclyAccessible: false
+      DBName:
+        Ref: pDBName
+      CharacterSetName: AL32UTF8
+      AllocatedStorage:
+        Ref: pDBAllocatedStorage
+      MaxAllocatedStorage:
+        Ref: pDBMaxAllocatedStorage
+      DBInstanceClass:
+        Ref: pDBInstanceType
+      Engine:
+        Ref: pDBEngine
+      EngineVersion:
+        Ref: pDBEngineVersion
+      MasterUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref rSecretAdminRDS, ':SecretString:username}}' ]]
+      MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref rSecretAdminRDS, ':SecretString:password}}' ]]
+      VPCSecurityGroups:
+        - Fn::ImportValue: !Join ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, "sg-rds"]]
+      MultiAZ:
+        Ref: pDBMultiAZ
+      BackupRetentionPeriod:
+        Ref: pDBBackupRetentionPeriod
+      Port: !Ref pPort
+      DBSubnetGroupName:
+        Ref: rDBSubnetGroup
+      KmsKeyId:
+        Ref: pKMSKeyId
+      StorageEncrypted:
+        Ref: pDBStorageEncrypted
+      StorageType:
+        Ref: pDBStorageType
+      AutoMinorVersionUpgrade: true
+      AllowMajorVersionUpgrade: true
+      EnablePerformanceInsights: true
+      DeleteAutomatedBackups: false
+      CopyTagsToSnapshot: true
+      DeletionProtection: true
+      PreferredBackupWindow: 09:00-10:00
+      PreferredMaintenanceWindow: Sun:07:00-Sun:08:00
+      DBParameterGroupName:
+        Fn::ImportValue: !Join ["-", ["aw0000-database", !Ref 'pEnvironment', "stack-OracleEE112ParameterGroup", ]]
+      OptionGroupName:
+        Fn::ImportValue: !Join ["-", ["aw0000-database", !Ref 'pEnvironment', "stack-OracleEE112OptionGroup", ]]
+      DBSnapshotIdentifier:
+        Fn::If:
+          - emptySnapshot
+          - Ref: AWS::NoValue
+          - Ref: pSnapshotIdentifier
+      EnableCloudwatchLogsExports:
+        - alert
+        - audit
+        - listener
+        - trace
+      Tags:
+        - Key: bancolombia:info-activos
+          Value: "Si"
+        - Key: bancolombia:clasificacion-confidencialidad
+          Value: "Interna"
+        - Key: bancolombia:clasificacion-integridad
+          Value: "Impacto Tolerable"
+        - Key: bancolombia:clasificacion-disponibilidad
+          Value: "Impacto Tolerable"
+        - Key: bancolombia:bkmensual
+          Value: "rds"
+
+  rSecretAdminRDS:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Join: ["-", [ Ref: "AWS::StackName" , "secretrdsa-admin"]]
+      Description: !Sub 'Secreto del usuario administrador de la base de datos ${pDBEngine} del proyecto ${pProjectName} en ambiente ${pEnvironment}.'
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "usrAdmin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 15
+        ExcludeCharacters: '"@/\'
+
+  rSecretAdminRDSInstanceAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref rSecretAdminRDS
+      TargetId: !Ref rDBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  rOracleDBInstanceName:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: !Join [ '', [ '/', !Ref pApplicationCode, '/', !Ref pProjectName, '/', !Ref pEnvironment, '/','rdsv2-latest'  ] ]
+      Type: "String"
+      Value:
+        Ref: rDBInstance
+      Description: !Join [ '', [ 'Ultima RDS  ', !Ref pEnvironment , ' para la aplicacion ', !Ref pApplicationCode, '-',  !Ref pProjectName, ' '] ]
+      Tags:
+        "Environment": !Ref pEnvironment
+
+Outputs:
+  Endpoint:
+    Description: Connection endpoint for the database.
+    Value:
+      Fn::GetAtt: rDBInstance.Endpoint.Address
+
+  Port:
+    Description: Port number on which the database accepts connections.
+    Value:
+      Fn::GetAtt: rDBInstance.Endpoint.Port
+
+  rDBInstance:
+    Description: DBInstance wssign.
+    Value:
+        Ref: rDBInstance
+    Export:
+      Name:
+        Fn::Join: ["-", [ Ref: "AWS::StackName" , "instance-db"]]
