@@ -35,10 +35,10 @@ Parameters:
   # Parametros para redes
   VPC:
     Description: VPC to operate in
-    Type: AWS::EC2::VPC::Id
+    Type: AWS::EC2::VPC::Id #Lista todas las VPC
   SubnetIDs:
     Description: Subnet IDs that is a List of Subnet Id
-    Type: "List<AWS::EC2::Subnet::Id>"
+    Type: "List<AWS::EC2::Subnet::Id>" #Lista todas las SubNet
   DbSubnetIpBlocks:
     Description: "Comma delimited list of CIDR blocks"
     Type: CommaDelimitedList #Introduce valores separados con ","
