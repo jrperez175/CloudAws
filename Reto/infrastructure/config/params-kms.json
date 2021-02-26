@@ -1,0 +1,26 @@
+[
+    {
+      "ParameterKey": "pAWSKeyManagementServicePowerUser",
+      "ParameterValue": "#{kms-arn-power-user-policy}#"
+    },
+    {
+      "ParameterKey": "pApplicationCode",
+      "ParameterValue": "#{application-code}#"
+    },
+    {
+      "ParameterKey": "pEnvironment",
+      "ParameterValue": "#{env}#"
+    },
+    {
+      "ParameterKey": "pAmbientemurex",
+      "ParameterValue": "#{env-murex}#"
+    },
+    {
+      "ParameterKey": "pSharedAccountNumber",
+      "ParameterValue": "#{kms-shared-account-number}#"
+    },
+    {
+      "ParameterKey": "pProjectName",
+      "ParameterValue": "#{project-name}#"
+    }
+]

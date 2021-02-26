@@ -1,0 +1,120 @@
+  #jobs:
+  #  - job:
+  #    pool: Release-cloud
+  #    displayName: Run document
+      steps:
+         - task: AWSShellScript@1
+           displayName: Assume operation role 
+           inputs:
+             awsCredentials: '${{ parameters.account }}'
+             regionName: 'us-east-1'
+             scriptType: 'inline'
+             inlineScript: |
+                 id=$(aws sts get-caller-identity --query Account --output text)
+                 CREDS=$(aws sts assume-role --role-arn arn:aws:iam::$id:role/BCO-SR-MQ-Operation --role-session-name $BUILD_REQUESTEDFOREMAIL --duration-seconds 900)
+                 AWS_ACCESS_KEY_ID="$(echo $CREDS | jq -r '.Credentials.AccessKeyId')"
+                 AWS_SECRET_ACCESS_KEY="$(echo $CREDS | jq -r '.Credentials.SecretAccessKey')"
+                 AWS_SESSION_TOKEN="$(echo $CREDS | jq -r '.Credentials.SessionToken')"
+                 AWS_EXPIRATION=$(echo $CREDS | jq -r '.Credentials.Expiration')
+                 echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID]$AWS_ACCESS_KEY_ID"
+                 echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY]$AWS_SECRET_ACCESS_KEY"
+                 echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN]$AWS_SESSION_TOKEN"
+
+         - task: AWSShellScript@1
+           displayName: ${{ parameters.NOMBRECOLA }} Run document task
+           inputs:
+              regionName: 'us-east-1'
+              scriptType: 'inline'
+              inlineScript: |
+              
+                set -x
+
+                STACK_PREFIX="aw0445001-mqiib-documents"
+                ASG_PREFIX="aw0445001-mqiib"
+                ASG_NAME="$ASG_PREFIX-${{parameters.QMNAME}}"
+                USERMQ="${{parameters.USER}}"
+
+                if [[ ${{ parameters.account }} == bancolombia-integracion-dev-operacion-aws ]]; then
+                  STACK_NAME="$STACK_PREFIX"-dev
+                  echo "STACK NAME: "$STACK_NAME
+                elif [[ ${{ parameters.account }} == bancolombia-integracion-qa-operacion-aws ]]; then
+                  STACK_NAME="$STACK_PREFIX"-qa
+                  echo "STACK NAME: "$STACK_NAME
+                elif [[ ${{ parameters.account }} == bancolombia-integracion-pdn-operacion-aws ]]; then
+                  STACK_NAME="$STACK_PREFIX"-pdn
+                  echo "STACK NAME: "$STACK_NAME
+                fi
+                INSTANCEID=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name $ASG_NAME  --region us-east-1 | jq -r ".AutoScalingGroups[].Instances[].InstanceId")
+                SSM_DOCUMENT=$(aws cloudformation describe-stack-resources --stack-name "$STACK_NAME" | jq -r ".StackResources[].PhysicalResourceId" | grep rQueueCreation)
+                CW_LOG_GROUP="$STACK_NAME"-queuecreation
+                aws logs put-retention-policy --log-group-name $CW_LOG_GROUP --retention-in-days 7
+                STRINGDATA="OPTION=${{ parameters.OPTION }},CLUSTER=${{ parameters.CLUSTER }},OBJECTNAME=${{ parameters.OBJECTNAME }},QMNAME=${{parameters.QMNAME}},USER=$USERMQ" 
+                #STRINGDATA=$(echo -e "${STRINGDATA::-1}")
+                #STRINGDATA=$(echo -e "${STRINGDATA}" | sed 's/\'//g')
+                #outputs=$("aws ssm send-command --document-name $SSM_DOCUMENT --document-version 1 --instance-ids $INSTANCEID --parameters OPTION=${{ parameters.OPTION }},CLUSTER=${{ parameters.CLUSTER }},OBJECTNAME=${{ parameters.OBJECTNAME }},QMNAME=${{parameters.QMNAME}},USER=$USERMQ --cloud-watch-output-config CloudWatchLogGroupName=${CW_LOG_GROUP},CloudWatchOutputEnabled=true --query Command.[RequestedDateTime,CommandId,INSTANCEIDs[0]] --output text")
+                outputs=$(aws ssm send-command --document-name $SSM_DOCUMENT --document-version 1 --instance-ids $INSTANCEID --parameters ${STRINGDATA} --cloud-watch-output-config CloudWatchLogGroupName=${CW_LOG_GROUP},CloudWatchOutputEnabled=true --query Command.[RequestedDateTime,CommandId,INSTANCEIDs[0]] --output text)
+               
+                IFS=$'\t' read -r -a outputs_array <<< "$outputs"
+                commandid=${outputs_array[1]}
+                echo "COMMAND ID: "$commandid
+                echo "##vso[task.setvariable variable=commandid]$commandid"
+                #
+                loggroup=$CW_LOG_GROUP
+                instanceid=$INSTANCEID
+                echo "CLOUD WATCH LOG GROUP: "$loggroup
+                echo "Instanceid: "$instanceid
+                echo "##vso[task.setvariable variable=loggroup]$loggroup"
+                echo "##vso[task.setvariable variable=instanceid]$instanceid"
+                
+                
+         - task: AWSShellScript@1
+           displayName: Cloudwatch Log Groups
+           inputs:
+              regionName: 'us-east-1'
+              scriptType: 'inline'
+              inlineScript: |
+                  sleep 30
+                  set -x
+                  echo $(loggroup)                 
+#COMMANDID=$(echo -en $(commandid))
+#INSTANCEID=$(echo -en $(instanceid))
+#aws logs get-log-events --log-group-name $(loggroup) --log-stream-name "${COMMANDID}/$(INSTANCEID)/queuecreation/stdout" --output text
+#aws logs get-log-events --log-group-name $(loggroup) --log-stream-name "${COMMANDID}/$(INSTANCEID)/queuecreation/stderr" --output text
+
+#parameters:
+#- name: account
+#  displayName: AWS Account
+#  type: string
+#  values:
+#  - bancolombia-integracion-dev-operacion-aws
+#  - bancolombia-integracion-qa-operacion-aws
+#  - bancolombia-integracion-pdn-operacion-aws
+#
+#- name: OPTION
+#  displayName: Opción de objeto a crear (cola alias o local)
+#  type: string
+#  values:
+#  - qa
+#  - ql
+#
+#- name: CLUSTER
+#  displayName: cluster name (nocluster si no es cluster)
+#  type: string
+#  default: 'nocluster'
+#
+#- name: OBJECTNAME
+#  displayName: Nombre del/los objeto(s) (csv)
+#  type: string
+#
+#- name: QMNAME
+#  displayName: Nombre del gestor (queue manager)
+#  type: string
+#
+#- name: USER
+#  displayName: Usuario de conexion
+#  type: string
+
+   
+                      
+                  
+            

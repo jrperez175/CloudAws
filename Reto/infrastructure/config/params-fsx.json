@@ -1,0 +1,34 @@
+[
+    {
+        "ParameterKey": "pProjectName",
+        "ParameterValue": "#{project-name}#"
+    },
+    {
+        "ParameterKey": "pApplicationCode",
+        "ParameterValue": "#{application-code}#"
+    },
+    {
+        "ParameterKey": "pPrivateSubnetDB1",
+        "ParameterValue": "#{subnet-db-1}#"
+    },
+    {
+        "ParameterKey": "pKMSKeyId",
+        "ParameterValue": "#{kms-key-arn}#"
+    },
+    {
+        "ParameterKey": "pAutomaticBackupRetentionDays",
+        "ParameterValue": "#{fsx-AutomaticBackupRetentionDays}#"
+    },
+    {
+        "ParameterKey": "pDailyAutomaticBackupStartTime",
+        "ParameterValue": "#{fsx-AutomaticBackupStartTime}#"
+    },
+    {
+      "ParameterKey": "pAmbientemurex",
+      "ParameterValue": "#{env-murex}#"
+    },
+    {
+        "ParameterKey": "pEnvironment",
+        "ParameterValue": "#{env}#"
+    }
+]

@@ -1,0 +1,26 @@
+[
+    {
+        "ParameterKey": "pProject",
+        "ParameterValue": "#{project-name}#"
+    },
+    {
+        "ParameterKey": "pEnvironment",
+        "ParameterValue": "#{env}#"
+    },
+    {
+        "ParameterKey": "pApplicationCode",
+        "ParameterValue": "#{application-code}#"
+    },
+    {
+        "ParameterKey": "pDeleteAfterAnual",
+        "ParameterValue": "#{backup_RetencionAnual}#"
+    },
+    {
+      "ParameterKey": "pAmbientemurex",
+      "ParameterValue": "#{env-murex}#"
+    },    
+    {
+        "ParameterKey": "pKMSKeyId",
+        "ParameterValue": "#{kms-key-arn}#"
+    }
+]

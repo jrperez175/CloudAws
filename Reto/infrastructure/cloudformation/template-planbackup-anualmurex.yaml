@@ -1,0 +1,63 @@
+Description: "Template para creacion de planes quincenales y mensuales de backup para todos storage"
+Parameters:
+
+  pProject:
+    Description: Nombre del proyecto.
+    Type: String
+
+  pEnvironment:
+    Description: Ambiente donde se despliega.
+    Type: String
+
+  pApplicationCode:
+    Description: Codigo AW de la aplicacion.
+    Type: String
+
+  pDeleteAfterAnual:
+    Description: Lifecycle - days retencion for snapshot
+    Type: String
+
+  pKMSKeyId:
+    Description: The ARN of the AWS Key Management Service (AWS KMS)
+    Type : AWS::SSM::Parameter::Value<String>
+
+  pAmbientemurex:
+      Description: Ambiente de Murex'
+      Type: String
+
+Resources:
+
+  rBackupVaultBackupsanual:
+    Type: "AWS::Backup::BackupVault"
+    Properties:
+      BackupVaultName: !Join [ "-", [ "Vault", !Ref pApplicationCode, !Ref pProject, !Ref pEnvironment, !Ref pAmbientemurex, "anualmurex"] ]
+      EncryptionKeyArn: !Ref pKMSKeyId
+
+  rBackupPlananual:
+    Type: "AWS::Backup::BackupPlan"
+    Properties:
+      BackupPlan:
+        BackupPlanName: !Join [ "-", [ !Ref pApplicationCode, !Ref pProject, !Ref pEnvironment, !Ref pAmbientemurex, "anualmurex"] ]
+        BackupPlanRule:
+          -
+            RuleName: !Join [ "-", [ "Rule-Associated", "anualmurex"] ]
+            TargetBackupVault: !Ref rBackupVaultBackupsanual
+            ScheduleExpression: cron(00 13 01 01 ? *)
+            Lifecycle:
+              DeleteAfterDays: !Ref pDeleteAfterAnual
+    DependsOn: rBackupVaultBackupsanual
+
+  rTagBasedBackupSelectionanualmurex:
+    Type: "AWS::Backup::BackupSelection"
+    Properties:
+      BackupSelection:
+        SelectionName: !Join [ "-", [ "Tag-Selection", "anualmurex"] ]
+        IamRoleArn:
+          Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/BCO-SR-BK-Operation'
+        ListOfTags:
+          -
+            ConditionType: "STRINGEQUALS"
+            ConditionKey: "bancolombia:planbackupanualmurex"
+            ConditionValue: "anualmurex"
+      BackupPlanId: !Ref rBackupPlananual
+    DependsOn: rBackupPlananual

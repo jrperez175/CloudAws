@@ -1,0 +1,47 @@
+[
+    {
+        "ParameterKey": "pProjectName",
+        "ParameterValue": "#{project-name}#"
+    },
+    {
+        "ParameterKey": "pApplicationCode",
+        "ParameterValue": "#{application-code}#"
+    },
+
+    {
+        "ParameterKey": "pEnvironment",
+        "ParameterValue": "#{env}#"
+    },
+    {
+        "ParameterKey": "pS3SFTPRol",
+        "ParameterValue": "#{s3-sftp-rol}#"
+    },
+    {
+        "ParameterKey": "pSharedAccountNumber",
+        "ParameterValue": "#{kms-shared-account-number}#"
+    },
+    {
+        "ParameterKey": "pUserSmtp",
+        "ParameterValue": "#{ec2-user-smtp}#"
+    },
+    {
+        "ParameterKey": "pUserPasswdSmtp",
+        "ParameterValue": "#{ec2-passwd-smtp}#"
+    },
+    {
+        "ParameterKey": "pHostSmtp",
+        "ParameterValue": "#{ec2-host-smtp}#"
+    },
+    {
+        "ParameterKey": "pPortSmtp",
+        "ParameterValue": "#{ec2-port-smtp}#"
+    },
+    {
+        "ParameterKey": "pDeploySecretSmtp",
+        "ParameterValue": "#{ec2-deploy-secret-smtp}#"
+    },
+    {
+        "ParameterKey": "pAWSKeyManagementServicePowerUser",
+        "ParameterValue": "#{kms-arn-power-user-policy}#"
+    }
+]

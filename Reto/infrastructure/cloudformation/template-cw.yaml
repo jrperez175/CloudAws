@@ -1,0 +1,150 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'This template deploys a CloudWatch Dashboard / Alarms / SNS Topics'
+Parameters:
+
+  pSNSAppTopicEmailTesoreria:
+    Type: String
+    Default: jfherrer@bancolombia.com.co
+    # Default: ComponenteTesoreriaAmpliado@bancolombia.com.co
+
+  pInstanceId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Last id Instance
+
+  pAlertWrapperTopic:
+    Type: String
+    Default: "arn:aws:sns:us-east-1:915725620061:Bco-PagerDutySnsTopic"
+    Description: Alert Wrapper for central logging
+
+Resources:
+
+  rSNSInfraTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName:
+        Fn::Join: [ "-", [ Ref: "AWS::StackName", 'Cloud SNS']]
+      Subscription:
+      - Endpoint:
+          Ref: pSNSAppTopicEmailTesoreria
+        Protocol: email
+
+  rEC2CPUUtilizationHighAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/EC2
+      AlarmDescription:
+        Fn::Join: [ ": ", [ Ref: "AWS::StackName", 'EC2-CPU is high']]
+      MetricName: CPUUtilization
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 80
+      AlarmActions:
+        - Ref: rSNSInfraTopic
+        - Ref: pAlertWrapperTopic
+      OKActions:
+        - Ref: rSNSInfraTopic
+        - Ref: pAlertWrapperTopic
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref pInstanceId
+
+  StatusCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - arn:aws:automate:us-east-1:ec2:stop
+      - Ref: pAlertWrapperTopic
+      - Ref: rSNSInfraTopic
+      OKActions:
+      - Ref: rSNSInfraTopic
+      - Ref: pAlertWrapperTopic
+      AlarmDescription:
+        Fn::Join: [ ": ", [ Ref: "AWS::StackName", ' your instance is unhealthy']]
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref pInstanceId
+      EvaluationPeriods: 1
+      TreatMissingData: breaching
+      MetricName: StatusCheckFailed
+      Namespace: AWS/EC2
+      Period: 300
+      Statistic: Maximum
+      Threshold: 1
+
+  OpsEventRuleEc2Only:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: ec2-Status-Alarm
+      EventPattern:
+        source:
+          - aws.ec2
+        detail-type:
+          - EC2 Instance State-change Notification
+        detail:
+          state:
+            - stopping
+            - shutting-down
+            - terminated
+          instance-id:
+            - Ref: pInstanceId
+      State: ENABLED
+      Targets:
+        -
+          Arn:
+            Ref: rSNSInfraTopic
+          Id: infra
+
+  rOpsEventRuleEc2OnlyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - Ref: pAlertWrapperTopic
+      AlarmDescription:
+        Fn::Join: [ ": ", [ Ref: "AWS::StackName", 'Your EC2 was stopped or terminated']]
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: RuleName
+        Value: !Ref OpsEventRuleEc2Only
+      EvaluationPeriods: 1
+      MetricName: TriggeredRules
+      Namespace: AWS/Events
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+
+    rEC2CPUUtilizationHighAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        Namespace: !Ref 'AWS::StackName'
+        AlarmDescription:
+          Fn::Join: [ ": ", [ Ref: "AWS::StackName", 'EC2-CPU is high']]
+        MetricName: CPUUtilization
+        Statistic: Average
+        Period: 60
+        EvaluationPeriods: 2
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        Threshold: 80
+        AlarmActions:
+          - Ref: rSNSInfraTopic
+          - Ref: pAlertWrapperTopic
+        OKActions:
+          - Ref: rSNSInfraTopic
+          - Ref: pAlertWrapperTopic
+        Dimensions:
+          - Name: cpu
+            Value: 'cpu total'
+          - Name: mx_environment
+            Value: !Ref 'AWS::StackName' # aws:cloudformation:logical-id
+          - Name: mx_host
+            Value:
+              'Fn::Transform':
+              - Name: 'String'
+                Parameters:
+                  InputString: !Ref pServernameOrq # pServernameOrq, pServernameVar, pServernameMlc, pServernameBs
+                  Operation: Lower
+          - Name: mx_role
+            Value: !Ref rEC2Instance #rEC2Instance, rEC2InstanceVAR, rEC2InstanceMLC, rEC2InstanceB

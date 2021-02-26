@@ -1,0 +1,12 @@
+[
+
+    {
+      "ParameterKey": "pKMSKeyId",
+      "ParameterValue": "#{kms-key-arn}#"
+    },
+    {
+      "ParameterKey": "pAmbientemurex",
+      "ParameterValue": "#{env-murex}#"
+    }    
+
+]

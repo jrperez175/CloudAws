@@ -1,0 +1,116 @@
+
+
+#trigger:
+#  branches:
+#    include:
+#      - trunk
+#      - feature/*
+
+variables:
+#  - name: ENVIRONMENT
+#    value: $[variables.environment]
+  - name: "application-code"
+    value: "aw0434001"
+  - name: "MQACCOUNT"
+    value: "bancolombia-integracion-pdn-operacion-aws"
+  - name: "OPTIONMQ"
+    value: "ql"
+  - name: "CLUSTER"
+    value: "nocluster"
+#  ${{ if eq(variables['variables.ENVIRONMENT'], 'QA3') }}: # validate environment
+  - group: aw0434001_murex_core_variables_pdn_mx_aws_negocios_de_inversion    
+
+stages:
+  - stage: Build_Murex_Pilot
+    displayName: Build AMI Pilot
+    #condition: startsWith(variables.Ambiente,'dev')
+    jobs:  
+    - job:
+      pool: Release-cloud
+      displayName: Run document
+      steps:    
+#         - script: echo $(environment)
+#         - script: echo $(ENVIRONMENT) 
+         - task: AWSShellScript@1
+           displayName: ModuloSTRING
+           inputs:
+              regionName: 'us-east-1'
+              scriptType: 'inline'
+              inlineScript: |
+                set -x 
+                echo $SHELL
+                ambiente=$(env)
+                ambmurex=$(env-murex)               
+                PATHJSONMODULE="./colasmq/colasenv.json"
+                CHARTCONCAT="\,"
+
+                #modulesenv=$(jq ".modules[]" -r $PATHJSONMODULE )
+                TIPOCOLASMQ=$(jq -r '.colas[].tipo'  $PATHJSONMODULE|sort| uniq  )
+
+                for tipocola in ${TIPOCOLASMQ[@]} ; do
+
+                    #colasenvarray=$(jq ".$ambiente.$ambmurex.$module[]" -r $PATHJSONMODULE)
+                    colasenvarray=$(jq -r ".colas | .[]|select(.tipo==\"$tipocola\")|.nombre" $PATHJSONMODULE)
+
+                    for elem in ${colasenvarray[@]} ; do
+
+                      if ${ambiente} == "pdn" ; then
+
+                        varSTRING=$elem$CHARTCONCAT$varSTRING
+                        
+                      else
+
+                        varSTRING=${ambmurex^^}$elem$CHARTCONCAT$varSTRING  
+
+                      fi;
+
+                    done
+                    result=$(echo "${varSTRING::-2}")
+                    #result=$("echo $varSTRING|sed -e 's/.$//'") 
+                    #result=$("echo $result|sed -e 's/.$//'")                    
+                    echo "##vso[task.setvariable variable=RESULMQ$tipocola;]$result"
+                    echo "XXXXXXXXXXXXXXX"
+                    echo "=RESULMQ$tipocola"
+                    echo "XXXXXXXXXXXXXXX"
+                    varSTRING=""
+                done
+                #settings por ambientes faltantes
+                AWSACCOUNT=$(jq ".$ambiente.accountaws" -r $PATHJSONMODULE)
+                GESTORBYACCOUNT=$(jq ".$ambiente.gestor" -r $PATHJSONMODULE)
+                USRBYACCOUNT=$(jq ".$ambiente.usuariocnx" -r $PATHJSONMODULE)
+
+                echo "##vso[task.setvariable variable=MQACCOUNT;]$AWSACCOUNT"
+                echo "##vso[task.setvariable variable=MQGESTOR;]$GESTORBYACCOUNT"
+                echo "##vso[task.setvariable variable=MQUSRCNX;]$USRBYACCOUNT"
+                
+                
+
+         - script: |
+            set -x
+            #env 
+            echo "---------------------------"
+            echo $RESULMQQL
+            echo "###########################"
+            echo $RESULMQQA
+            echo "###########################"
+           
+
+         - template: template-mq.yml           
+           parameters:              
+              account: $(MQACCOUNT)
+              OPTION: "ql"        
+              CLUSTER: $(CLUSTER)   
+              OBJECTNAME: $(RESULMQQL)    
+              QMNAME: $(MQGESTOR)   
+              USER: $(MQUSRCNX)
+              NOMBRECOLA: "Colas QL $(env-murex)"               
+#
+         - template: template-mq.yml
+           parameters:
+              account: $(MQACCOUNT)
+              OPTION: "qa"        
+              CLUSTER: $(CLUSTER)   
+              OBJECTNAME: $(RESULMQQA)    
+              QMNAME: $(MQGESTOR)   
+              USER: $(MQUSRCNX)
+              NOMBRECOLA: "Colas QA $(env-murex)" 

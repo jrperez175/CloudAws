@@ -1,0 +1,14 @@
+[
+    {
+      "ParameterKey": "pPuertoRDS",
+      "ParameterValue": "#{rds-port}#"
+    },
+    {
+        "ParameterKey": "pEnvironment",
+        "ParameterValue": "#{env}#"
+    },    
+    {
+        "ParameterKey": "pDefaultVPC",
+        "ParameterValue": "#{id-vpc}#"
+    }
+]
