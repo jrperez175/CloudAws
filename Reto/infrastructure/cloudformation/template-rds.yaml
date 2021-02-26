@@ -1,0 +1,518 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template deploys an Amazon RDS for Oracle instance
+
+Parameters:
+
+  pApplicationCode:
+    Description: Codigo de la aplicacion.
+    Type: String
+
+  pEnvironment:
+    Description: Environment where it unfolds.
+    Type: String
+
+  pProjectName:
+    Description: Nombre del proyecto.
+    Type: String
+
+  pSnapshotIdentifier:
+    Description: Use the snapshot for the RDS.
+    Type: String
+
+  pKMSKeyId:
+    Description: The ARN of the AWS Key Management Service (AWS KMS)
+    Type : AWS::SSM::Parameter::Value<String>
+
+  pPrivateSubnetDB1:
+    Description: ID of private subnet BD 1.
+    Type: AWS::EC2::Subnet::Id
+
+  pPrivateSubnetDB2:
+    Description: ID of private subnet BD 2.
+    Type: AWS::EC2::Subnet::Id
+
+  pDBName:
+    Description: Name of the DB instance.
+    ConstraintDescription: >-
+      Must begin with a letter and contain only
+      alphanumeric characters.
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+
+  pDBInstanceType:
+    Description: Determines the CPU and RAM capacity of an RDS DB instance.
+    Type: String
+
+  pDBEngine:
+    Description: Database engine to be used for this instance.
+    Type: String
+
+  pDBEngineVersion:
+    Description: The version number of the database engine.
+    Type: String
+
+  pDBLicenseModel:
+    Description: License model of the DB instance.
+    Type: String
+
+  pDBStorageType:
+    Description: Which storage instance use?
+    Type: String
+
+  pDBAllocatedStorage:
+    Description: Allocated storage size, specified in gigabytes (GB).
+    ConstraintDescription: Must be an integer from 20 to 32768.
+    Type: Number
+    MinValue: 20
+    MaxValue: 32768
+
+  pDBMaxAllocatedStorage:
+    Description: Storage autoscaling
+    ConstraintDescription: Must be an integer from 20 to 32768.
+    Type: Number
+    MinValue: 20
+    MaxValue: 32768
+
+  pDBBackupRetentionPeriod:
+    Description: >-
+      Number of days during which automatic DB
+      snapshots are retained.
+    ConstraintDescription: Must be between 0 and 35 days.
+    Type: Number
+    MinValue: 0
+    MaxValue: 35
+
+  pDBMultiAZ:
+    Description: Use Multi-AZ ?
+    Type: String
+    AllowedValues: [true, false]
+
+  pPort:
+    Description: RDS port.
+    Type: String
+
+  pAmbientemurex:
+      Description: Ambiente de Murex'
+      Type: String
+
+  pBucketFile:
+    Description: S3 bucket name BDs Transversal for murex core assets and installations
+    Type: String
+
+  pBucketTransversal:
+    Description: S3 bucket name Local Environment for murex core assets and installations
+    Type: String
+
+  pBucketLambdas:
+    Description: S3 bucket name Transversal lambdas for murex core assets and installations
+    Type: String
+
+  pSSMDBSGTransversal:
+    Description: Sg transversal para la ejecucion de Scripts Iniciales
+    Type: AWS::SSM::Parameter::Value<String>
+
+  pOpenCursors:
+    Description: RDS Open Cursors.
+    Type: Number
+
+  pProcesses:
+    Description: RDS Processes.
+    Type: Number
+
+  pDefaultVPC:
+    Description: VPC donde debe quedar asociada la instancia
+    Type: 'AWS::EC2::VPC::Id'
+
+Conditions:
+  emptySnapshot:
+    !Or [!Equals [!Ref pSnapshotIdentifier, ""], !Equals [!Ref pSnapshotIdentifier, "none"] ]
+
+  cPrdEnv:
+    !Equals [ !Ref pEnvironment, "pdn"] # Si pEnviroment es igual a pdn manda true de lo contrario false
+
+  cPrdEnvMx:
+    !Equals [ !Ref pAmbientemurex, "mx"] # Si pAmbientemurex es igual a pdn manda true de lo contrario false
+
+  cPrdEnvDat:
+    !Equals [ !Ref pAmbientemurex, "dat"] #Validación para crear el security group para la RDS de Datical 
+
+Resources:
+
+  rSecurityGroupRdsDat:
+    Condition: cPrdEnvDat
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access RDS
+      VpcId:
+        Ref: pDefaultVPC
+      GroupName: !Join ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex,  "sg-rds"]]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort:
+            Ref: pPort
+          ToPort:
+            Ref: pPort
+          CidrIp: 10.0.0.0/8
+          Description: "Acceso desde red Bancolombia"
+        - IpProtocol: tcp
+          FromPort:
+            Ref: pPort
+          ToPort:
+            Ref: pPort
+          CidrIp: 10.104.36.0/24
+          Description: "private subnet 1A"
+        - IpProtocol: tcp
+          FromPort:
+            Ref: pPort
+          ToPort:
+            Ref: pPort
+          CidrIp: 10.104.37.0/24
+          Description: "private subnet 2A "
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkAWS:1}}'
+          Description: Rango de direcciones ip de Cyberark AWS
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkNiquia:1}}'
+          Description: Rango de direcciones ip de Cyberark Niquia
+        - IpProtocol: -1
+          CidrIp: '{{resolve:ssm:RangoIpHerramientasSeguridad:1}}'
+          Description: Rango de direcciones ip de las herramientas de seguridad Tenable
+        - Ref: AWS::NoValue
+      Tags:
+      - Key: Name
+        Value: !Join ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex,  "sg-rds"]]
+
+
+  rDBParameterGroupOracle:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description:
+        Ref: AWS::StackName
+      Family: 'oracle-ee-12.1'
+      Parameters:
+        compatible: 12.1.0.2.0
+        _b_tree_bitmap_plans: FALSE
+        _use_adaptive_log_file_sync: FALSE
+        _trace_files_public: FALSE
+        audit_trail: XML,EXTENDED
+        optimizer_adaptive_features: FALSE
+        cursor_sharing: FORCE
+        fast_start_mttr_target: 1800
+        log_checkpoint_interval: 0
+        log_checkpoint_timeout: 0
+        nls_date_format: YYYYMMDD
+        nls_length_semantics: BYTE
+        open_cursors: !Ref pOpenCursors
+        optimizer_adaptive_features: FALSE
+        optimizer_index_cost_adj: 10
+        optimizer_mode: ALL_ROWS
+        parallel_max_servers: 32
+        processes: !Ref pProcesses
+        recyclebin: 'OFF'
+        session_cached_cursors: 300
+        star_transformation_enabled: FALSE
+        statistics_level: TYPICAL
+        timed_statistics: TRUE
+        undo_retention: 10800
+        workarea_size_policy: AUTO
+
+  rOptionGroupOracle:
+    Type: AWS::RDS::OptionGroup
+    Properties:
+      EngineName:
+        Ref: pDBEngine
+      MajorEngineVersion: 12.1
+      OptionGroupDescription: DB Option Group for Oracle
+      OptionConfigurations:
+        - OptionName: Timezone
+          OptionSettings:
+            - Name: TIME_ZONE
+              Value: America/Bogota
+        - OptionName: S3_INTEGRATION
+          OptionVersion: 1.0
+
+  rDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName:
+        Ref: AWS::StackName
+      DBSubnetGroupDescription:
+        Fn::Join: ["", [SubnetGroup, for, Ref: "AWS::StackName", instances.]]
+      SubnetIds:
+        - Ref: pPrivateSubnetDB1
+        - Ref: pPrivateSubnetDB2
+
+  rDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AssociatedRoles:
+        - FeatureName: S3_INTEGRATION
+          RoleArn: !GetAtt rRDSRole.Arn
+      LicenseModel:
+        Ref: pDBLicenseModel
+      PubliclyAccessible: false
+      DBName:
+        Ref: pDBName
+      CharacterSetName: AL32UTF8
+      AllocatedStorage:
+        Ref: pDBAllocatedStorage
+      MaxAllocatedStorage:
+        Ref: pDBMaxAllocatedStorage
+      DBInstanceClass:
+        Ref: pDBInstanceType
+      Engine:
+        Ref: pDBEngine
+      EngineVersion:
+        Ref: pDBEngineVersion
+      MasterUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref rSecretAdminRDS, ':SecretString:username}}' ]]
+      MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref rSecretAdminRDS, ':SecretString:password}}' ]]
+      VPCSecurityGroups:
+        - Fn::If:
+            - cPrdEnvDat
+            - Ref: rSecurityGroupRdsDat
+            - Fn::ImportValue: !Join ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex,  "sg-rds"]]
+        - Ref: pSSMDBSGTransversal
+      MultiAZ:
+        Ref: pDBMultiAZ
+      BackupRetentionPeriod:
+        Ref: pDBBackupRetentionPeriod
+      Port: !Ref pPort
+      DBSubnetGroupName:
+        Ref: rDBSubnetGroup
+      KmsKeyId:
+        Ref: pKMSKeyId
+      StorageEncrypted: true
+      StorageType:
+        Ref: pDBStorageType
+      AutoMinorVersionUpgrade: true
+      AllowMajorVersionUpgrade: true
+      EnablePerformanceInsights: true
+      DeleteAutomatedBackups: true
+      CopyTagsToSnapshot: true
+      DeletionProtection: !If [cPrdEnvMx, true ,false ]
+      PreferredBackupWindow: 09:00-10:00
+      PreferredMaintenanceWindow: Sun:07:00-Sun:08:00
+      DBParameterGroupName:
+        Ref: rDBParameterGroupOracle
+      OptionGroupName:
+        Ref: rOptionGroupOracle
+      DBSnapshotIdentifier:
+        Fn::If:
+          - emptySnapshot
+          - Ref: AWS::NoValue
+          - Ref: pSnapshotIdentifier
+      BackupRetentionPeriod: !If [cPrdEnv, 35 ,30 ]
+      EnableCloudwatchLogsExports:
+        - alert
+        - audit
+        - listener
+        - trace
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+        - Key: bancolombia:murex_environment
+          Value: !Ref pAmbientemurex
+        - Key: "bancolombia:info-clientes-proveedores-empleados"
+          Value: "clientes-empleados"
+        - Key: "bancolombia:info-productos"
+          Value: "si"
+        - Key: "bancolombia:info-finan-conta-legal"
+          Value: "todos"
+        - Key: "bancolombia:riesgos-seguridad"
+          Value: "ambas"
+        - Key: "bancolombia:sox-compliance"
+          Value: "si"
+        - Key: "bancolombia:impact"
+          Value: "bia"
+        - Key: "bancolombia:clasificacion-confidencialidad"
+          Value: "confidencial"
+        - Key: "bancolombia:clasificacion-integridad"
+          Value: "impacto critico"
+        - Key: "bancolombia:clasificacion-disponibilidad"
+          Value: "impacto critico"
+        - Key: "bancolombia:dominio-informacion"
+          Value: "productos-financiera-contable-legal-riesgos-seguridad"
+        - Key: "bancolombia:datos-personales"
+          Value: "clientes-empleados"
+        - Key: "bancolombia:cumplimiento"
+          Value: "sox-bia"
+        - Key: "bancolombia:bkmensual"
+          Value: !If [cPrdEnv,"rds","rds"]
+        - Key: "bancolombia:bkdiario"
+          Value: !If [cPrdEnv,"rds","rds"]
+        - Key: "bancolombia:planbackupanualmurex"
+          Value: !If [cPrdEnv,"anualmurex","none"]  # Si la condición es true envia el primer valor, de lo contrario envia el segundo
+
+  rSecretAdminRDS:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Join: ["-", [ Ref: "AWS::StackName" ,"secretrdsa-admin"]]
+      Description: !Sub 'Secreto del usuario administrador de la base de datos ${pDBEngine} del proyecto ${pProjectName} en ambiente ${pEnvironment} del ambiente ${pAmbientemurex}.'
+      KmsKeyId: !Ref pKMSKeyId
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "usrAdmin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 15
+        # ExcludeCharacters: !Ref pComilla
+        ExcludeCharacters: '!"''''@/\'
+
+  rSecretAdminRDSInstanceAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref rSecretAdminRDS
+      TargetId: !Ref rDBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  rOracleDBInstanceName:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: !Join ["-", [!Ref 'AWS::StackName' ,'latest'] ]
+      Type: "String"
+      Value:
+        Ref: rDBInstance
+      Description: !Join [ '', [ 'Ultima RDS ', !Ref 'AWS::StackName'] ]
+
+  rRDSRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service: rds.amazonaws.com
+                  AWS: !Join ["", ["arn:aws:iam::", !Ref "AWS::AccountId", ":role/Bancolombia-", !Ref pEnvironment, "-deployment-Rol-VSTS"]]
+                Action:
+                  - "sts:AssumeRole"
+        RoleName: !Join ["-", [!Ref 'AWS::StackName' ,"rds-role"]]
+
+        Policies:
+          - PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action:
+                  - "secretsmanager:*"
+                  Resource: !Ref rSecretAdminRDS
+                  Effect: "Allow"
+            PolicyName: GetSecretValue
+          - PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action:
+                  - "rds:StartDBInstance"
+                  Resource: "*"
+                  Effect: "Allow"
+            PolicyName: StartDBInstance
+          - PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action:
+                  - "lambda:InvokeFunction"
+                  Resource:
+                    - Fn::Join: ["", ["arn:aws:lambda:", !Ref "AWS::Region",":", !Ref "AWS::AccountId", ":function:aw0434001-murex-core-", !Ref "pEnvironment","-kms-policy"] ]
+                  Effect: "Allow"
+            PolicyName: InvokeFunctionKmsPolicy
+          - PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action:
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GetKeyPolicy
+                  - kms:DescribeKey
+                  - kms:GenerateDataKey
+                  Resource: !Ref pKMSKeyId
+                  Effect: Allow
+                - Action:
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+                  - s3:GetObjectACL
+                  - s3:PutObjectACL
+                  Resource:
+                    - Fn::Sub: arn:aws:s3:::${pBucketFile}
+                    - Fn::Sub: arn:aws:s3:::${pBucketTransversal}
+                    - Fn::Sub: arn:aws:s3:::${pBucketFile}/*
+                    - Fn::Sub: arn:aws:s3:::${pBucketTransversal}/*
+                  Effect: Allow
+
+            PolicyName: !Join ["-", [!Ref 'AWS::StackName' ,"Oracle-rds-s3-integration"]]
+
+        Tags:
+          - Key: Name
+            Value: !Join ["-", [Ref: "AWS::StackName","role"]]
+
+  rKMSCustomResource:
+      Type: Custom::AddPolicytoKMS
+      Properties:
+        ServiceToken:
+          Fn::Sub: 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:aw0434001-murex-core-${pEnvironment}-kms-policy'
+        KeyAlias:
+          Fn::Join:  ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex, "kms" ]]
+        Role: !GetAtt rRDSRole.Arn
+        # Role: !Join [ "", [ 'arn:aws:iam::', !Ref AWS::AccountId, ':root']]
+      DependsOn: rRDSRole
+
+  rKMSCustomResourceTransversal:
+      Type: Custom::AddPolicytoKMS
+      Properties:
+        ServiceToken:
+          Fn::Sub: 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:aw0434001-murex-core-${pEnvironment}-kms-policy'
+        KeyAlias:
+          Fn::Join:  ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, "kms-Transversal" ]]        #'aw0434001-murex-core-dev-dev2-kms'
+        Role: !GetAtt rRDSRole.Arn
+        # Role: !Join [ "", [ 'arn:aws:iam::', !Ref AWS::AccountId, ':root']]
+      DependsOn:
+        - rRDSRole
+        - rKMSCustomResource
+
+  rRDSCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken:
+        Fn::Sub: 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:aw0434001-murex-core-${pEnvironment}-ScriptsInicialesRDS'
+      SecretAdminRDS:
+        Ref: rSecretAdminRDS
+      DatabaseName:
+        Ref: pDBName
+      BucketName:
+        Ref: pBucketLambdas
+    DependsOn: rSecretAdminRDSInstanceAttachment
+
+  rSQLScriptsLambdaFunctionCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken:
+        Fn::Sub: 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:aw0000-cloud-lb-scripts-rds-function'
+      SecretAdminRDS:
+        Ref: rSecretAdminRDS
+      DatabaseName:
+        Ref: pDBName
+    DependsOn: rSecretAdminRDSInstanceAttachment
+
+Outputs:
+  Endpoint:
+    Description: Connection endpoint for the database.
+    Value:
+      Fn::GetAtt: rDBInstance.Endpoint.Address
+
+  Port:
+    Description: Port number on which the database accepts connections.
+    Value:
+      Fn::GetAtt: rDBInstance.Endpoint.Port
+
+  DBInstance:
+    Description: DBInstance assign.
+    Value:
+      Ref: rDBInstance
+    Export:
+      Name:
+        Fn::Join: ["-", [ Ref: "AWS::StackName" , "instance-db"]]

@@ -1,0 +1,58 @@
+[
+    {
+        "ParameterKey": "pApplicationCode",
+        "ParameterValue": "#{application-code}#"
+    },
+    {
+        "ParameterKey": "pCostCenter",
+        "ParameterValue": "#{cost-center}#"
+    },    
+    {
+        "ParameterKey": "pOwner",
+        "ParameterValue": "#{pmo}#"
+    },
+    {
+        "ParameterKey": "pProjectName",
+        "ParameterValue": "#{project-name}#"
+    },
+    {
+        "ParameterKey": "pEnvironment",
+        "ParameterValue": "#{env}#"
+    },
+    {
+        "ParameterKey": "pAmbientemurex",
+        "ParameterValue": "#{env-murex}#"
+    },
+    {
+        "ParameterKey": "pEnvironmentmurex",
+        "ParameterValue": "#{env-murex}#"
+    },
+    {
+        "ParameterKey": "pCerPkiArn",
+        "ParameterValue": "#{cer-pki-arn}#"   
+    },
+    {
+        "ParameterKey": "pCerCommonName01",
+        "ParameterValue": "#{cer-common-name}#"
+    },
+    {
+        "ParameterKey": "pCerSans01",
+        "ParameterValue": "#{cer-sans}#"
+    },
+    {
+        "ParameterKey": "pFSxDns",
+        "ParameterValue": "#{fsx-dns}#"
+    },
+    {
+        "ParameterKey": "pInstanceAMI",
+        "ParameterValue": "#{murex-ami-id}#"
+    },
+    {
+        "ParameterKey": "pPrivateSubnet1",
+        "ParameterValue": "#{subnet-app-1}#"
+    },
+    {
+        "ParameterKey":"pPasswdkeystoremq",
+        "ParameterValue":"#{passwdkeystore}#"
+    }
+]

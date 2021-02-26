@@ -1,0 +1,834 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: ' This template deploys an ASG  '
+
+Parameters:
+
+  pProjectName:
+    Description: Nombre del proyecto.
+    Type: String
+
+  pApplicationCode:
+    Description: Codigo de la aplicacion.
+    Type: String
+
+  pPrivateSubnet1:
+    Description: ID of private subnet 1.
+    Type: AWS::EC2::Subnet::Id
+
+  pPrivateSubnet2:
+    Description: ID of private subnet 2.
+    Type: AWS::EC2::Subnet::Id
+
+  pInstanceType:
+    Description: Type of EC2 instance for the instances
+    ConstraintDescription: Must contain valid EC2 instance type for instances
+    Type: String
+
+  pInstanceAMI:
+    Description: AMI used to deploy the instances
+    Type : String
+
+  pNodesMaxSize:
+    Description: The maximum amount of EC2 in the Auto Scaling group
+    Type: String
+
+  pNodesMinSize:
+    Description: The minimum amount of EC2 in the Auto Scaling group
+    Type: String
+
+  pScaleUpWaitTime:
+    Description: The time (in seconds) to wait to generate next scale up action "Cooldown"
+    Type: String
+
+  pBucketFile:
+    Description: S3 bucket name for murex core assets and installations
+    Type: String
+
+  pBucketTransversal:
+    Description: S3 bucket name for murex core assets and installations
+    Type: String
+
+  pKMSKeyId:
+    Description: The ARN of the AWS Key Management Service (AWS KMS)
+    Type: AWS::SSM::Parameter::Value<String>
+
+  pEnvironment:
+    Description: Environment where it unfolds.
+    Type: String
+
+  pUpResourceCron:
+    Description: Hora de subida de los recursos para los schedule
+    Type: String
+
+  pDownResourceCron:
+    Description: Hora de bajada de los recursos para los schedule
+    Type: String
+
+  pNodesMinSizeLowResources:
+    Description: Numero minimo de nodos en horario diferente al habitual
+    Type: String
+
+  pStandardNameServer:
+    Description: Server standard name
+    Type: String
+
+  pDomain:
+    Description: Domain
+    Type: String
+
+  pHostedZoneID:
+    Description: Hosted zone id
+    Type: String
+
+  pFSxDns:
+    Description: The FSx Disk ID and DNS
+    Type: AWS::SSM::Parameter::Value<String>
+
+  pKmsIdTransversal:
+    Description: Arn de la llava Kms Transversal
+    Type: AWS::SSM::Parameter::Value<String>
+
+  pVarCodeUrlRepo:
+    Description: base 64 url repo to clone
+    Type: String
+
+  pAmbientemurex:
+      Description: Ambiente de Murex'
+      Type: String
+
+  pRolmurex:
+      Description: Rol de Murex'
+      Type: String
+
+  pBucketControlM:
+    Description:  Bucket Name Control M
+    Type: String
+
+  pDBName:
+    Description: Name of the DB instance.
+    ConstraintDescription: >-
+      Must begin with a letter and contain only
+      alphanumeric characters.
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+
+  pPort:
+    Description: RDS port.
+    Type: String
+
+  pDNSHost:
+    Description: RDS DNShost.
+    Type: String
+
+  pIdAccountSharedSrv:
+      Description:  id Cuenta Shared Service
+      Type: String
+
+  pIpchrony:
+    Description:  ip  server NTP
+    Type: String
+
+  pLogGroupRetentionInDays:
+    Description: The number of days to retain the log events
+    Type: String
+
+Conditions:
+
+  cAmbientePDN:
+    Fn::Equals: [!Ref pEnvironment, "pdn"]
+
+  cRolmurex:
+    Fn::Equals: [!Ref pRolmurex, "orchestrator"]
+
+Resources:
+
+  rEc2RoleAsg:
+      Type: AWS::IAM::Role
+      Properties:
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service: ec2.amazonaws.com
+                  AWS: !Join ["", ["arn:aws:iam::", !Ref "AWS::AccountId", ":role/Bancolombia-", !Ref pEnvironment, "-deployment-Rol-VSTS"]]
+                Action:
+                  - "sts:AssumeRole"
+        RoleName: !Join ["-", [!Ref 'AWS::StackName' ,"role"]]
+        Policies:
+          - PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:TagLogGroup
+                    - logs:ListTagsLogGroup
+                    - logs:UntagLogGroup
+                    - logs:AssociateKmsKey
+                    - logs:PutRetentionPolicy
+                    - logs:DescribeLogGroups"
+                  Resource: arn:aws:logs:*:*:*
+                  Effect: Allow
+            PolicyName: cloudwatchlogsaccess
+          - PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObjectAcl
+                  - s3:DeleteObject
+                  Resource:
+                    - Fn::Sub: arn:aws:s3:::${pBucketFile}
+                    - Fn::Sub: arn:aws:s3:::${pBucketTransversal}
+                    - Fn::Sub: arn:aws:s3:::${pBucketFile}/*
+                    - Fn::Sub: arn:aws:s3:::${pBucketTransversal}/*
+                  Effect: Allow
+            PolicyName: allow-download-from-bucket-pBucketFile-and-pBucketTransversal
+          - PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Action:
+                  - s3:GetObject
+                  Resource:
+                    - Fn::Join: ["", ["arn:aws:s3:::", !If [cAmbientePDN, dcm-shared-s3-monitoreo-de-ti,dcm-shared-non-prod-s3-monitoreo-de-ti], '/*']]
+                    - Fn::Sub: arn:aws:s3:::${pBucketControlM}/*
+                  Effect: Allow
+            PolicyName: allow-download-from-bucket-dcm-shared-or-dcm-shared-non-prod
+          - PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Action:
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GetKeyPolicy
+                  - kms:DescribeKey
+                  - kms:GenerateDataKey
+                  Resource:
+                    - !Ref pKMSKeyId
+                    - !Ref pKmsIdTransversal
+                  Effect: Allow
+            PolicyName: allow-get-objects-BucketFile-to-EC2-KMS
+          - PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action:
+                  - "secretsmanager:GetSecretValue"
+                  Resource:
+                    - !Join ["", ["arn:aws:secretsmanager:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":", "secret:", !Ref "pApplicationCode", "-", !Ref "pProjectName", "-", !Ref "pEnvironment", "-", !Ref "pAmbientemurex", "*" ] ]
+                    - !Join ["", ["arn:aws:secretsmanager:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":", "secret:", !Ref "pApplicationCode", "-", !Ref "pProjectName", "-", !Ref "pEnvironment", "-secret-email*"  ] ]
+                  Effect: "Allow"
+            PolicyName: GetSecretValue
+          - PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action: [
+                            "ec2:Describe*",
+                            "ec2:DescribeTags",
+                            "ec2:CreateTags"
+                          ]
+                  Resource: "*"
+                  Effect: "Allow"
+            PolicyName: allow-create-TAGS
+          - PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                  - states:DescribeExecution
+                  - states:DescribeStateMachine
+                  - states:GetActivityTask
+                  - states:GetExecutionHistory
+                  - states:ListExecutions
+                  - states:StartExecution
+                  Resource: "*"
+                  Effect: "Allow"
+            PolicyName: maquinas-estados
+          - PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                  - ssm:SendCommand
+                  Resource: "*"
+                  Effect: "Allow"
+            PolicyName: SendCommand
+          - PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                  - ssm:GetParameterHistory
+                  - ssm:DescribeParameters
+                  - ssm:GetParametersByPath
+                  - ssm:GetParameters
+                  - ssm:GetParameter
+                  Resource: "*"
+                  Effect: "Allow"
+            PolicyName: GetParameterStore
+          - PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                  - autoscaling:UpdateAutoScalingGroup
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeAutoScalingInstances
+                  - autoscaling:DescribeScalingActivities
+                  - autoscaling:DescribeScalingProcessTypes
+                  - autoscaling:DescribeScheduledActions
+                  - autoscaling:DescribeAutoScalingNotificationTypes
+                  Resource: "*"
+                  Effect: "Allow"
+            PolicyName: UpdateAutoScalingGroup-control-M
+          - PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                  - "cloudwatch:putmetricdata"
+                  - "cloudwatch:PutMetricAlarm"
+                  - "cloudwatch:DeleteAlarms"
+                  Resource: "*"
+                  Effect: "Allow"
+            PolicyName: cloudwatch-putmetricdata
+          - PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                  - lambda:InvokeFunction
+                  Resource:
+                    - Fn::Join: ["", ["arn:aws:lambda:", !Ref "AWS::Region",":", !Ref "AWS::AccountId", ":function:aw0434001-murex-core-", !Ref "pEnvironment", "-DNS"] ]
+                    - Fn::Join: ["", ["arn:aws:lambda:", !Ref "AWS::Region",":", !Ref "AWS::AccountId", ":function:aw0434001-murex-core-", !Ref "pEnvironment", "-lambda-rotation-ldap"] ]
+                    - Fn::Join: ["", ["arn:aws:lambda:", !Ref "AWS::Region",":", !Ref "AWS::AccountId", ":function:aw0434001-murex-core-", !Ref "pEnvironment","-kms-policy"] ]
+                  Effect: "Allow"
+            PolicyName: Invocar-Lambda-dns-and-rotation-ldap-and-kms-policy
+        Tags:
+          - Key: Name
+            Value: !Join ["-", [!Ref 'AWS::StackName' ,"role"]]
+
+  rPolicyRds:
+    Type: 'AWS::IAM::Policy'
+    Condition: cAmbientePDN
+    Properties:
+      PolicyName: RdsModifyDBSnapshotAttribute
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'rds:ModifyDBSnapshotAttribute'
+              - 'rds:DescribeDBSnapshots'
+              - 'rds:DescribeDBSnapshotAttributes'
+              - 'rds:DeleteDBSnapshot'
+              - 'rds:CreateDBSnapshot'
+            Resource:
+              - !Join ["", ["arn:aws:rds:", !Ref "AWS::Region",":", !Ref "AWS::AccountId", ":db:*"]]
+              - !Join ["", ["arn:aws:rds:", !Ref "AWS::Region",":", !Ref "AWS::AccountId", ":snapshot:*"]]
+      Roles:
+        - !Ref rEc2RoleAsg
+
+
+  rKMSCustomResource:
+      Type: Custom::AddPolicytoKMS
+      Properties:
+        ServiceToken:
+          Fn::Sub: 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:aw0434001-murex-core-${pEnvironment}-kms-policy'
+        KeyAlias:
+          Fn::Join:  ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, "kms-Transversal" ]]
+        Role: !GetAtt rEc2RoleAsg.Arn
+      DependsOn: rEc2RoleAsg
+
+  rKMSCustomResource2:
+      Type: Custom::AddPolicytoKMS
+      Properties:
+        ServiceToken:
+          Fn::Sub: 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:aw0434001-murex-core-${pEnvironment}-kms-policy'
+        KeyAlias:
+          Fn::Join:  ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex, "kms" ]]
+        Role: !GetAtt rEc2RoleAsg.Arn
+      DependsOn:
+        - rEc2RoleAsg
+        - rKMSCustomResource
+
+
+  rProfile:
+    DependsOn: rEc2RoleAsg
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Join ["-", [!Ref 'AWS::StackName' ,"InstanceProfile"]]
+      Path: /
+      Roles:
+        - Ref: rEc2RoleAsg
+
+  rLaunchTemplate:
+    DependsOn: rProfile
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${AWS::StackName}-launch-template
+      LaunchTemplateData:
+        # NetworkInterfaces:
+        # [
+        #     {
+        #         "AssociatePublicIpAddress": False
+        #     }
+        # ]
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: true
+              # KmsKeyId: !Ref pKMSKeyId
+              VolumeSize: 30
+              VolumeType: gp2
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt:
+            -  rProfile
+            -  Arn
+        ImageId:
+          Ref: pInstanceAMI
+        InstanceInitiatedShutdownBehavior: terminate
+        InstanceType:
+          Ref: pInstanceType
+        Monitoring:
+          Enabled: true
+        SecurityGroupIds:
+          - Fn::If:
+            - cRolmurex
+            - Fn::ImportValue: !Join ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex, "sg-asg-orq" ]]
+            - Fn::ImportValue: !Join ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex, "sg-asg" ]]
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+            - Key: Name
+              Value: !Ref AWS::StackName
+            - Key: bancolombia:murex_environment
+              Value: !Ref pAmbientemurex
+            - Key: bancolombia:murex_role
+              Value: !Select [6, !Split ["-", !Ref 'AWS::StackName']]
+            - Key: bancolombia:murex_orchestrator
+              Value: mx01
+          - ResourceType: volume
+            Tags:
+            - Key: Name
+              Value: !Ref AWS::StackName
+            - Key: bancolombia:murex_environment
+              Value: !Ref pAmbientemurex
+            - Key: bancolombia:murex_role
+              Value: !Select [6, !Split ["-", !Ref 'AWS::StackName']]
+            - Key: bancolombia:murex_orchestrator
+              Value: mx01
+            - Key: "bancolombia:info-clientes-proveedores-empleados"
+              Value: "clientes-empleados"
+            - Key: "bancolombia:info-productos"
+              Value: "si"
+            - Key: "bancolombia:info-finan-conta-legal"
+              Value: "todos"
+            - Key: "bancolombia:riesgos-seguridad"
+              Value: "ambas"
+            - Key: "bancolombia:sox-compliance"
+              Value: "si"
+            - Key: "bancolombia:impact"
+              Value: "bia"
+            - Key: "bancolombia:clasificacion-confidencialidad"
+              Value: "confidencial"
+            - Key: "bancolombia:clasificacion-integridad"
+              Value: "impacto critico"
+            - Key: "bancolombia:clasificacion-confidencialidad"
+              Value: "confidencial"
+            - Key: "bancolombia:dominio-informacion"
+              Value: "productos-financiera-contable-legal-riesgos-seguridad"
+            - Key: "bancolombia:datos-personales"
+              Value: "clientes-empleados"
+            - Key: "bancolombia:cumplimiento"
+              Value: "sox-bia"
+        UserData:
+          Fn::Base64: !Sub
+            - |
+              #!/bin/bash
+              set -x
+
+              # create tags volume y varias
+              export EC2_INSTANCE_ID="`wget -q -O - http://169.254.169.254/latest/meta-data/instance-id || die \"wget instance-id has failed: $?\"`"
+              export EC2_AVAIL_ZONE="`wget -q -O - http://169.254.169.254/latest/meta-data/placement/availability-zone || die \"wget availability-zone has failed: $?\"`"
+              export EC2_REGION="`echo \"$EC2_AVAIL_ZONE\" | sed -e 's:\([0-9][0-9]*\)[a-z]*\$:\\1:'`"
+              export EC2_LOCAL_IPV4="`wget -q -O - http://169.254.169.254/latest/meta-data/local-ipv4 || die \"wget availability-zone has failed: $?\"`"
+              aws configure set default.region $EC2_REGION
+              su - murex -c "aws configure set default.region $EC2_REGION"
+              TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$EC2_INSTANCE_ID" "Name=key,Values=bancolombia*,azure*" --query 'Tags[].{Key:Key,Value:Value}')
+              VOLUME=$(aws ec2 describe-instances --instance-ids "$EC2_INSTANCE_ID" --region $EC2_REGION  --query 'Reservations[].Instances[].BlockDeviceMappings[].Ebs.VolumeId' --output text )
+              aws ec2 create-tags --resources "$VOLUME" --tags "$TAGS"
+              aws ec2 create-tags --resources $EC2_INSTANCE_ID --tags Key=bancolombia:ipv4,Value=$EC2_LOCAL_IPV4
+              export MUREX_ROLE=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$EC2_INSTANCE_ID" "Name=key,Values=bancolombia:murex_role" --query 'Tags[].{Value:Value}' --output text)
+              export MUREX_ENVIRONMENT=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$EC2_INSTANCE_ID" "Name=key,Values=bancolombia:murex_environment" --query 'Tags[].{Value:Value}' --output text)
+              export MUREX_PMO=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$EC2_INSTANCE_ID" "Name=key,Values=bancolombia:pmo" --query 'Tags[].{Value:Value}' --output text)
+
+              ## creacion de tnsnames.ora, sqlnet.ora y restauracion del hostname en el FSx
+              echo -e "NAMES.DIRECTORY_PATH= (TNSNAMES, EZCONNECT)
+              TCP.NODELAY=yes
+              SQLNET.ALLOWED_LOGON_VERSION_CLIENT=8
+              SQLNET.ALLOWED_LOGON_VERSION_SERVER=8" > /opt/oracle/11204_64/network/admin/sqlnet.ora
+              chown oracle:dba  /opt/oracle/11204_64/network/admin/sqlnet.ora
+              echo -e "${dbname} = (DESCRIPTION =(ADDRESS_LIST=(ADDRESS = (COMMUNITY = tcp)(PROTOCOL = TCP)(HOST=${dbhost})(Port = ${dbport})))(CONNECT_DATA =(SID = ${dbname})(SERVER = DEDICATED)))" > /opt/oracle/11204_64/network/admin/tnsnames.ora
+              chown oracle:dba  /opt/oracle/11204_64/network/admin/tnsnames.ora
+
+              #configuracion del server NTP
+              aws s3 cp s3://${BUCKETTRANSVERSAL}/chrony.conf /tmp/
+              mv /etc/chrony.conf /etc/chrony.conf_backup
+              sudo sed -i "s/__NTP__/${IP_CHRONY}/g" /tmp/chrony.conf
+              mv /tmp/chrony.conf /etc/chrony.conf
+              chmod 644 /etc/chrony.conf
+              systemctl enable chronyd.service
+              systemctl start chronyd.service
+              systemctl status chronyd.service
+
+              #Configuracion Agente DG
+              tagEnv="`aws ec2 describe-tags --filters "Name=resource-id,Values=$EC2_INSTANCE_ID" "Name=key,Values=bancolombia:environment" --query 'Tags[].{Value:Value}' --output text`"
+              tagMurexEnv="`aws ec2 describe-tags --filters "Name=resource-id,Values=$EC2_INSTANCE_ID" "Name=key,Values=bancolombia:murex_environment" --query 'Tags[].{Value:Value}' --output text`"
+
+              ###############clone repo to initial all Processes
+
+              TOKENVSTS=$(aws secretsmanager get-secret-value --secret-id ${projectcode}-${projectname}-${env}-${envmurex}-secrets-SecretEc2  --query SecretString --output text|jq -r '.tokenvsts')
+              VARUNDECODEURL=$(echo ${VARCODEURL}|base64 --decode| sed s"/TOKENVSTS/$TOKENVSTS/")
+              cd /tmp
+              git clone $(echo $VARUNDECODEURL)
+
+              #PLAN DE RESPALDO EN CASO DE QUE FALLE EL GIT CLONE
+              if [[ ! -d /tmp/aw0434001_murex_core_aws_cod_sop ]]; then
+                mkdir -p /tmp/aw0434001_murex_core_aws_cod_sop
+                aws s3 cp s3://${BUCKETTRANSVERSAL}/Assets/assets.zip /tmp/assets.zip
+                unzip /tmp/assets.zip -d /tmp/aw0434001_murex_core_aws_cod_sop
+              fi
+
+              ###
+              cd /tmp/aw0434001_murex_core_aws_cod_sop/
+              FileJsonCheckout="/tmp/assets/envcheckout.json"
+              echo "ambiente-->" ${env}
+              rama="`jq -r .${env} $FileJsonCheckout`"
+              git fetch -- all
+              git checkout trunk
+              #####################
+
+              cp -r /tmp/aw0434001_murex_core_aws_cod_sop/assets_app/* /tmp/assets/
+
+              ####FSSYNC
+              mkdir -p /murex/fs_sync
+              chown murex:murex /murex/fs_sync
+              cp -r /tmp/aw0434001_murex_core_aws_cod_sop/murex_fs_sync/* /murex/fs_sync/
+              chown murex:murex /murex/fs_sync
+              ###################################################################
+
+              ### Preparacion de Servicios
+
+                PATH_ASSETS="/tmp/assets"
+
+                chmod 755 $PATH_ASSETS/findtag.sh
+                chmod 755 $PATH_ASSETS/setservertofile.sh
+                chmod 755 $PATH_ASSETS/unsetservertofile.sh
+                chmod 755 $PATH_ASSETS/config-cw-log-groups-murex-core.sh
+                chmod 755 $PATH_ASSETS/upsertroute53.sh
+                chmod 755 $PATH_ASSETS/deleteroute53.sh
+                chmod 755 $PATH_ASSETS/alarmsmurexorqbusmlcvar.sh
+                chmod 755 $PATH_ASSETS/deletealarms.sh
+                chmod 755 chmod 755 /opt/oracle
+                ########## Set-unset Server file
+
+                cp -v $PATH_ASSETS/setservertofile.sh /usr/local/bin/
+                cp -v $PATH_ASSETS/unsetservertofile.sh /usr/local/bin/
+                cp $PATH_ASSETS/systemd/deletefromfile.service /etc/systemd/system/
+
+                ########## Set-unset Server file
+
+                ########## Route 53
+                cp -v $PATH_ASSETS/upsertroute53.sh /usr/local/bin/
+                cp -v $PATH_ASSETS/deleteroute53.sh /usr/local/bin/
+                cp $PATH_ASSETS/systemd/registerroute53.service /etc/systemd/system/
+                ########## Route 53
+
+                ########## Monitoreo Murex procesos
+                cp -v $PATH_ASSETS/alarmsmurexorqbusmlcvar.sh /usr/local/bin/
+                cp -v $PATH_ASSETS/deletealarms.sh /usr/local/bin/
+                cp $PATH_ASSETS/systemd/monitoreomurexprocesos.service /etc/systemd/system/
+                ########## Monitoreo Murex procesos
+
+                ########## Cloud Watch
+                cp -r $PATH_ASSETS/cwagent_murex /opt/cwagent_murex
+
+                chmod +x /opt/cwagent_murex/*.py
+                chmod +x /opt/cwagent_murex/modules/*.py
+                chown murex:murex -R /opt/cwagent_murex/
+                runuser -l murex -c 'python3 -m pip install -r /opt/cwagent_murex/requirements.txt --user'
+                cp /opt/cwagent_murex/systemd/cwagent_murex.service /etc/systemd/system/
+                systemctl enable cwagent_murex
+                systemctl start cwagent_murex
+                ##########Cloud Watch
+
+              #####Directorio de sterling Cadena######
+              if [ "$MUREX_ROLE" == 'orchestrator' ]; then
+                su - murex -c "mkdir -p /murex/murex_app/app/ConfirmacionesMX/In"
+                su - murex -c "mkdir -p /murex/murex_app/app/ConfirmacionesMX/Out"
+                su - murex -c "chmod 770 -R /murex/murex_app/app/ConfirmacionesMX/"
+              fi
+
+              ###########uninstall Agent DG Murex
+              if [ "$MUREX_ROLE" == 'orchestrator' ]; then
+                cp  /tmp/assets/uninstallagentdg.sh /usr/local/bin/uninstallagentdg.sh
+                cp  /tmp/assets/installagentDG.sh /usr/local/bin/installagentDG.sh
+                chown murex:root /usr/local/bin/uninstallagentdg.sh
+                chown murex:root /usr/local/bin/installagentDG.sh
+                chmod +x /usr/local/bin/uninstallagentdg.sh
+                chmod +x /usr/local/bin/installagentDG.sh
+                cp $PATH_ASSETS/systemd/adminagentdg.service /etc/systemd/system/
+              fi
+                ##########uninstall Agent Murex
+
+              # "Nombre del servidor estandar banco"
+              echo=${standardnameserver}
+              export serial=`< /dev/urandom tr -dc a-z0-9 | head -c8; echo`
+              export servername=$(echo ${standardnameserver} | tr A-Z a-z)$serial
+              hostnamectl set-hostname $servername+.${domain}
+              nmcli connection modify System\ eth0 ipv4.dns-search ${domain},ec2.internal
+              systemctl restart systemd-hostnamed.service
+              systemctl restart NetworkManager.service
+              aws ec2 create-tags --resources $EC2_INSTANCE_ID --tags Key=bancolombia:servername,Value=$servername
+
+              #Montar FSx
+              echo "${dnsfsx}   /murex lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
+              mount -a
+              chown murex:murex /murex
+              chmod 750 /murex
+              mkdir -p /murex/scripts
+              chown murex:murex /murex/scripts
+              cp -rv /tmp/aw0434001_murex_core_aws_cod_sop/assets_app/scripts/* /murex/scripts
+              chmod 750 -R /murex/scripts
+              chown -R murex:murex /murex/scripts
+
+
+              # Enlaces simbolicos
+              if [ "$MUREX_ROLE" == 'orchestrator' ]; then
+                ln -s /murex/impyval /impyval
+                ln -s /murex/mfc-module /mfc-module
+                ln -s /murex/VALUATION-MODULE /VALUATION-MODULE
+                ln -s /murex/VALMODULE-BSMO /VALMODULE-BSMO
+                ln -s /murex /murexLocal
+                su - murex -c "mkdir -p /murex/murex_app/app/"
+                chmod 750 /murex/
+                chmod 750 /murex/murex_app/
+                chmod 750 /murex/murex_app/app
+              fi
+
+              #Relacioón de confianza entre las maquinas de Murex
+              mkdir /home/murex/.ssh
+              aws secretsmanager get-secret-value --secret-id ${projectcode}-${projectname}-${env}-${envmurex}-secrets-SecretEc2  --query SecretString --output text|jq -r '.id_pri_rsa_murex' | base64 -d  > /home/murex/.ssh/id_rsa
+              chown -R murex:murex /home/murex/.ssh
+              chmod 600  /home/murex/.ssh/id_rsa
+              su - murex -c "ssh-keygen -e -m 'RFC4716' -f /home/murex/.ssh/id_rsa  > /home/murex/.ssh/id_rsa_temp_ASCII"
+              su - murex -c "ssh-keygen -i -m 'RFC4716' -f /home/murex/.ssh/id_rsa_temp_ASCII  > /home/murex/.ssh/id_rsa.pub"
+              su - murex -c "cat /home/murex/.ssh/id_rsa.pub  >> /home/murex/.ssh/authorized_keys"
+              echo -e  "Host * \n StrictHostKeyChecking no" > /home/murex/.ssh/config
+              chmod 400 /home/murex/.ssh/config
+              chown murex:murex /home/murex/.ssh/config
+
+              #creacion de Usuarios de Sterling, DataStage y generacion de llaves RSA
+              chmod 750 /tmp/aw0434001_murex_core_aws_cod_sop/assets_app/users_data_stage_and_sterling.sh
+              /tmp/aw0434001_murex_core_aws_cod_sop/assets_app/users_data_stage_and_sterling.sh ${env} ${envmurex} ${projectcode} ${projectname}
+
+              #Depurarcion de Logs de Murex
+              if [ "$MUREX_ROLE" == 'orchestrator' ]; then
+              su - murex -c "mkdir /murex/murex_log"
+              /murex/scripts/limpiar_logs.sh
+              fi
+
+              # configuracion agente CW y Log Groups
+              chmod 750 /tmp/assets/config-cw-log-groups-murex-core.sh
+              /tmp/assets/config-cw-log-groups-murex-core.sh  ${stackname} $servername ${loggroupretention} ${env}
+              /opt/cwagent_murex/cwagent_create_inital_metrics.py
+
+              #Intalacion de agente de Control M
+              chmod 750 /tmp/aw0434001_murex_core_aws_cod_sop/assets_app/control_m.sh
+              /tmp/aw0434001_murex_core_aws_cod_sop/assets_app/control_m.sh ${env}
+
+              # parametros scripts controlm
+              if [ "$MUREX_ROLE" == 'orchestrator' ]; then
+                cp -v /tmp/aw0434001_murex_core_aws_cod_sop/assets_app/asg_control_m* /murex/scripts/
+                chown murex:murex /murex/scripts/asg_control_m_*
+                chmod 750 /murex/scripts/asg_control_m_*
+                sed  -i "s/env/${env}/; s/envmurex/${envmurex}/" /murex/scripts/asg_control_m_var_after_closing.sh
+                sed  -i "s/env/${env}/; s/envmurex/${envmurex}/" /murex/scripts/asg_control_m_var_before_closing.sh
+                sed  -i "s/env/${env}/; s/envmurex/${envmurex}/" /murex/scripts/asg_control_m_mlc_before_closing.sh
+                sed  -i "s/env/${env}/; s/envmurex/${envmurex}/" /murex/scripts/asg_control_m_mlc_after_closing.sh
+                sed  -i "s/env/${env}/; s/envmurex/${envmurex}/" /murex/scripts/asg_control_m_business_before_closing.sh
+                sed  -i "s/env/${env}/; s/envmurex/${envmurex}/" /murex/scripts/asg_control_m_business_after_closing.sh
+              fi
+
+              # Variables para Registrar hostname en Route53
+              echo "HOSTEDZONEID=${hostedzoneid}" >>  /tmp/assets/variablesroute53
+              echo "DOMAIN=${domain}" >>  /tmp/assets/variablesroute53
+              echo "HOSTNAME=$(hostname -s)" >>  /tmp/assets/variablesroute53
+              echo "EC2_LOCAL_IPV4=$EC2_LOCAL_IPV4" >>  /tmp/assets/variablesroute53
+              echo "DNSALL=${projectcode}-${env}-$MUREX_ENVIRONMENT" >> /tmp/assets/variablesroute53
+              echo "DNSROLE=${projectcode}-$MUREX_ROLE-${env}-$MUREX_ENVIRONMENT" >> /tmp/assets/variablesroute53
+              echo "IDACCOUNTSRV=${IDACCOUNTSHARED}" >> /tmp/assets/variablesroute53
+              echo "projectcode=${projectcode}"  >> /tmp/assets/variablesroute53
+              echo "env=${env}"  >> /tmp/assets/variablesroute53
+
+              # Variables para el monitoreo de CW
+              echo "stackname=${stackname}" >> /tmp/assets/variablescw
+
+              systemctl daemon-reload && systemctl enable deletefromfile.service && systemctl start deletefromfile.service
+              systemctl daemon-reload && systemctl enable registerroute53.service && systemctl start registerroute53.service
+              systemctl daemon-reload && systemctl enable monitoreomurexprocesos.service && systemctl start monitoreomurexprocesos.service
+
+              #######Agent DG Murex
+              export DG-MUREX=/var/log/dg-murex.log
+              {
+              if [ "$MUREX_ROLE" == 'orchestrator' ];then
+                echo  "tokenvsts=$TOKENVSTS" > /tmp/assets/tokensvst
+                echo  "tagEnv=$tagEnv" >> /tmp/assets/tokensvst
+                echo  "tagMurexEnv=$tagMurexEnv" >> /tmp/assets/tokensvst
+                echo  "ORACLE_HOME=/opt/oracle/11204_64/" >> /tmp/assets/tokensvst
+                chown murex:murex /tmp/assets/tokensvst
+                chown murex:murex /usr/local/bin/uninstallagentdg
+                systemctl daemon-reload && systemctl enable adminagentdg.service && systemctl start adminagentdg.service
+              fi
+              } | tee $DG-MUREX
+
+              ##repisar permisos
+              chown murex:murex /murex/murex_app/app/servidores_*
+
+              ## ejecucion del script fixing_hostname
+              if [ "$MUREX_ROLE" == 'orchestrator' ]; then
+                chown murex:murex /tmp/assets/fixinghostname.sh
+                chmod 755 /tmp/assets/fixinghostname.sh
+                su - murex -c "/tmp/assets/fixinghostname.sh"
+              fi
+
+              ### Configuracion del sshd_config
+              if [ -f /etc/ssh/sshd_config ]; then
+                  cp -f /etc/ssh/sshd_config /etc/ssh/sshd_config.bak_`date +%s`
+                  export clientAliveInterval=$(grep '^ClientAliveInterval' /etc/ssh/sshd_config | cut -f 2 -d " ")
+                  if [ -n $clientAliveInterval ]; then
+                      sed -i -e "s/^ClientAliveInterval $clientAliveInterval/ClientAliveInterval 1200/" /etc/ssh/sshd_config
+                  fi
+                  export clientAliveCountMax=$(grep '^ClientAliveCountMax' /etc/ssh/sshd_config | cut -f 2 -d " ")
+                  if [ -n $clientAliveCountMax ]; then
+                      sed -i -e "s/^ClientAliveCountMax $clientAliveCountMax/ClientAliveCountMax 3/g" /etc/ssh/sshd_config
+                  fi
+                  export passwordAuthentication=$(grep '^PasswordAuthentication' /etc/ssh/sshd_config | cut -f 2 -d " ")
+                  if [ $passwordAuthentication == 'no' ]; then
+                      sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+                  fi
+                  systemctl restart sshd
+              fi
+
+              ### Cron para la actualización de los datos de autenticacion al servidor de correo
+              if [ "$MUREX_ROLE" == 'orchestrator' ] ; then
+                echo "murex" >> /etc/cron.allow
+                echo "00 12 * * 0 /usr/bin/python3 /murex/fs_sync/murex_update_smtp.py aw0434001-murex-core-${env}-secret-email" >> /var/spool/cron/murex
+                systemctl restart crond.service
+              fi
+
+              if [ "$MUREX_ROLE" == 'orchestrator' ] && [ -d "/murex/fs_sync" ] ; then
+                su - murex -c "/usr/bin/python3 /murex/fs_sync/murex_update_smtp.py aw0434001-murex-core-${env}-secret-email"
+              fi
+
+              echo 'murex ALL=(root) NOPASSWD: /bin/mkdir -p /fs_sync, /bin/mount -o nosuid\,nodev -o size=[1-9][0-9]G -t tmpfs tmpfs /fs_sync, /bin/chown murex\:murex /fs_sync, /bin/umount /fs_sync' >> /etc/sudoers
+
+            - {projectcode: !Ref pApplicationCode, stackname: !Ref 'AWS::StackName', loggroupretention: !Ref pLogGroupRetentionInDays, IP_CHRONY: !Ref pIpchrony, BUCKETTRANSVERSAL: !Ref pBucketTransversal, dbhost: !Ref pDNSHost, dbport: !Ref pPort, dbname: !Ref pDBName, envmurex: !Ref pAmbientemurex,bucketfile: !Ref pBucketFile, dnsfsx: !Ref pFSxDns, hostedzoneid: !Ref pHostedZoneID,domain: !Ref pDomain, projectname: !Ref pProjectName, env: !Ref pEnvironment, standardnameserver: !Ref pStandardNameServer , dcmbucket: !If [cAmbientePDN, dcm-shared-s3-monitoreo-de-ti,dcm-shared-non-prod-s3-monitoreo-de-ti], VARCODEURL: !Ref pVarCodeUrlRepo, IDACCOUNTSHARED: !Ref pIdAccountSharedSrv }
+
+  rAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: "1"
+        MaxBatchSize: "1"
+        PauseTime: "PT3M0S"
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - Healt cation
+          - ScheduledActions
+    Properties:
+      VPCZoneIdentifier:
+        - Ref: pPrivateSubnet1
+        - Ref: pPrivateSubnet2
+      Cooldown:
+        Ref: pScaleUpWaitTime
+      DesiredCapacity:
+        Ref: pNodesMinSize
+      HealthCheckGracePeriod: 300
+      HealthCheckType: EC2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref rLaunchTemplate
+        Version: !GetAtt rLaunchTemplate.LatestVersionNumber
+      MaxSize:
+        Ref: pNodesMaxSize
+      MinSize:
+        Ref: pNodesMinSize
+      DesiredCapacity:
+        Ref: pNodesMinSize
+      TerminationPolicies:
+        - OldestLaunchConfiguration
+        - OldestInstance
+      MetricsCollection:
+       -
+         Granularity: "1Minute"
+         Metrics:
+           - "GroupMinSize"
+           - "GroupMaxSize"
+           - "GroupDesiredCapacity"
+           - "GroupInServiceInstances"
+           - "GroupPendingInstances"
+           - "GroupStandbyInstances"
+           - "GroupTerminatingInstances"
+           - "GroupTotalInstances"
+      Tags:
+        - Key: Name
+          Value: !Ref 'AWS::StackName'
+          PropagateAtLaunch: "true"
+        - Key: bancolombia:murex_role
+          Value: !Select [6, !Split ["-", !Ref 'AWS::StackName']]
+          PropagateAtLaunch: "true"
+        - Key: bancolombia:murex_environment
+          Value: !Ref pAmbientemurex
+          PropagateAtLaunch: "true"
+        - Key: bancolombia:murex_orchestrator
+          Value: mx01
+          PropagateAtLaunch: "true"
+
+  rScheduledActionDown:
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName:
+        Ref: rAutoScalingGroup
+      MaxSize:
+        Ref: pNodesMaxSize
+      MinSize:
+        Ref: pNodesMinSizeLowResources
+      DesiredCapacity:
+        Ref: pNodesMinSizeLowResources
+      Recurrence:
+        Ref: pDownResourceCron
+
+  rScheduledActionUp:
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName:
+        Ref: rAutoScalingGroup
+      MaxSize:
+        Ref: pNodesMaxSize
+      MinSize:
+        Ref: pNodesMinSize
+      DesiredCapacity:
+        Ref: pNodesMinSize
+      Recurrence:
+        Ref: pUpResourceCron

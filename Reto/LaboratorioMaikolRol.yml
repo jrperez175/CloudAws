@@ -1,0 +1,249 @@
+# ________________________________________________PARÁMETROS DE LA VPC__________________________________________________________
+Parameters:       # Los parametros se definen despues de los Resources 
+
+  VPCMaikol:     # 1 parametro
+    Description: Ingrese el Nombre de la VPC
+    Type: String
+    Default: VPC-Maikol-CF #****** Este es el nombre que tomara la VPC en Your VPCs
+ 
+  RangoDireccionamientoVPC:  #2 parametro
+    Description: Ingrese el rango de IP (notación CIDR) para esta VPC    
+    Type: String
+    Default: 10.0.0.0/16 #******Defino el rango de IPs para mi VPC
+
+  
+# ________________________________________________PARÁMETROS DE LA SUBNET__________________________________________________________
+ 
+  RangoSubnetPublica1: #4 parametro
+    Description: Ingrese el rango de IP (notación CIDR) para esta VPC    
+    Type: String
+    Default: 10.0.1.0/24 #******Defino los valores de las IP para cada subnet, deben estar dentro de lo definido en la VPC
+    
+  RangoSubnetPrivada1: #5 parametro
+    Description: Ingrese el rango de IP (notación CIDR) para esta VPC    
+    Type: String
+    Default: 10.0.3.0/24 #******Defino los valores de las IP para cada subnet, deben estar dentro de lo definido en la VPC
+
+  RangoSubnetPublica2: #6 parametro
+    Description: Ingrese el rango de IP (notación CIDR) para esta VPC    
+    Type: String
+    Default: 10.0.2.0/24 #******Defino los valores de las IP para cada subnet, deben estar dentro de lo definido en la VPC
+    
+  RangoSubnetPrivada2: #7 parametro
+    Description: Ingrese el rango de IP (notación CIDR) para esta VPC    
+    Type: String
+    Default: 10.0.4.0/24 #******Defino los valores de las IP para cada subnet, deben estar dentro de lo definido en la VPC
+
+    
+# ________________________________________________CREAR VPC__________________________________________________________
+ 
+Resources:
+  myVPC:  #Este es el nombre que yo le doy al recurso
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref RangoDireccionamientoVPC #****** Hago referencia a lo definido en el parametro creado RangoDireccionamientoVPC
+      EnableDnsSupport: 'false'
+      EnableDnsHostnames: 'false'
+      #InstanceTenancy: dedicated
+      Tags: #****** Definiendo Tags
+        - Key: Name #****** Definiendo el campo nombre
+          Value: !Ref VPCMaikol #****** Hago referencia a lo definido en el parametro creado VPCMaikol
+
+        # ____________________________________________Crear Internet Gatway___________________________________________________________
+  InternetGateway: 
+    Type: AWS::EC2::InternetGateway #****** Definiendo el tipo de Recurso que voy a desplegar
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref VPCMaikol  #Hago referencia al parametro creado para mi VPC
+
+        # _______________________________________ATACHANDO EL INTERNTEGATEWAY A LA VPC____________________________________________
+  InternetGatewayAttachment: 
+    Type: AWS::EC2::VPCGatewayAttachment #****** Definiendo el tipo de Recurso que voy a desplegar
+    Properties:
+      InternetGatewayId: !Ref InternetGateway  #****** Enviando el Id del interfent Getaway haciendo referencia al RECURSO internetGateway
+      VpcId: !Ref myVPC #****** Enviando el id de la VPC haciendo referencia al RECURSO de mi VPC
+
+        # ____________________________________________Crear 2Subnet Publicas y 2privadas_________________________________________________
+ 
+  PublicSubnet1: #Este es el nombre que yo le doy al recurso
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC    # Hago referencia al RECURSO  de VPC creado
+      AvailabilityZone: !Select [ 0, !GetAZs '']
+      CidrBlock: !Ref RangoSubnetPublica1    # Hago referencia a lo definido en el parametro creado RangoSubnetPublica1
+      #MapPublicIpOnLaunch: false 
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCMaikol} Public1 Subnet (AZ1) #Hago referencia a lo definido en el parametro + lo concatenado
+
+  PrivateSubnet1: #Este es el nombre que yo le doy al recurso
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC  # Hago referencia al RECURSO  de VPC creado
+      AvailabilityZone: !Select [ 0, !GetAZs '']
+      CidrBlock: !Ref RangoSubnetPrivada1   # Hago referencia a lo definido en el parametro creado RangoSubnetPrivada1:
+      #MapPublicIpOnLaunch: false 
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCMaikol} Private1 Subnet (AZ1)        #Hago referencia a lo definido en el parametro + lo concatenado 
+
+  PublicSubnet2: #Este es el nombre que yo le doy al recurso
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC  # Hago referencia al RECURSO  de VPC creado
+      AvailabilityZone: !Select [ 1, !GetAZs '']
+      CidrBlock: !Ref RangoSubnetPublica2  # Hago referencia a lo definido en el parametro creado RangoSubnetPublica2
+      #MapPublicIpOnLaunch: false 
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCMaikol} Public2 Subnet (AZ2) #Hago referencia a lo definido en el parametro + lo concatenado
+
+  PrivateSubnet2: #Este es el nombre que yo le doy al recurso
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC  # Hago referencia al RECURSO  de VPC creado
+      AvailabilityZone: !Select [ 1, !GetAZs '']
+      CidrBlock: !Ref RangoSubnetPrivada2   # Hago referencia a lo definido en el parametro creado RangoSubnetPrivada2
+      #MapPublicIpOnLaunch: false 
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCMaikol} Private2 Subnet (AZ2)  #Hago referencia a lo definido en el parametro + lo concatenado
+
+# ______________________________________Crear grupo de seguridad__________________________________________________________
+
+  MyGrupoDeSeguridad:  # Este es el nombre que le doy al recurso
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: !Sub ${VPCMaikol} Grupo de Seguridad Web server #Hago referencia al parametro VPCMaikol + lo concatenado
+      GroupName: Migrupo 
+      VpcId: !Ref myVPC   #Hago referencia al RECURSO creado myVPC
+      # Configurar 2 reglas de entrada (Inbound Rules) 
+      SecurityGroupIngress: 
+        - 
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        -
+          IpProtocol: tcp
+          FromPort: 90
+          ToPort: 90
+
+      #Configurar 2 reglas de salida (Outbound)
+      SecurityGroupEgress: 
+        - 
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - 
+          IpProtocol: tcp
+          FromPort: 200
+          ToPort: 200
+          CidrIp: 0.0.0.0/0
+        
+      # Tags: 
+      #   - 
+      #     key: Name
+      #     Value: SG Server
+
+  # _____________Creo las tablas de enrutamiento__________
+
+  TablaPublicadeEnrutamiento: 
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC # referencio mi recurso VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCMaikol} Public Routes #Referencio el parametro VPC
+
+  # _____________Asociar subnet publica 1 a tabla de enrutamiento
+
+  SubnetPublicaRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref TablaPublicadeEnrutamiento # Referencio el recurso creado
+      SubnetId: !Ref PublicSubnet1 # Referencio mi recurso de subnet publica
+
+  #_____________Asociar subnet publica 2 a tabla de enrutamiento
+
+  SubnetPublicaRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref TablaPublicadeEnrutamiento # Referencio el recurso creado
+      SubnetId: !Ref PublicSubnet2  # Referencio mi recurso de subnet publica
+
+  # ________________________________________________Crear EC2__________________________________________________________
+
+  MyEC2Instance: #Este es el nombre que yo le doy al recurso
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref InstanceProfile #**** Llamo el Rol IAM Creado
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdm   # Nombre del disco, este es diferente al del SO
+          Ebs:
+            VolumeSize: 5
+            VolumeType: gp2 #***** Tipo de Disco
+      InstanceType: t2.nano
+      ImageId: ami-a4c7edb2
+      Monitoring: true #***** Activando el monitoreo     
+      SecurityGroupIds: #***** Definiendo el grupo de seguridad en el que va a estar la instancia
+        - !Ref MyGrupoDeSeguridad # Hago referencia al RECURSO creado MyGrupoDeSeguridad 
+      SubnetId: !Ref PublicSubnet1 #***** Hago referencia al Recurso creado PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: EC2Instancia2-Test-CF  #!Sub #${EC2MAIKOL} Bancolombia  # Hago referencia a lo definido en el parametro EC2MAIKOL + la palabra Bancolombia
+
+#_____________________________________________CREANDO RDS_______________________________________
+#___________ Primero creo la SUBNET______________________
+
+  rdsDBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup" #*****  crea un grupo de subredes de base de datos. Los grupos de subredes deben contener al menos dos subredes en dos zonas de disponibilidad diferentes de la misma región.
+    Properties: 
+      DBSubnetGroupDescription: Grupo Subnet RDS
+      SubnetIds:  #***** Matriculando 2 subnet en diferentes zonas de disponibilidad
+        - !Ref PrivateSubnet1 #Referencio el primer RECURSO de Subnet privada
+        - !Ref PrivateSubnet2 #Referencio el segundo RECURSO de Subnet privada
+      Tags: 
+        - 
+          Key: Name
+          Value: RDSSubnet  # Es el nombre que le doy 
+
+#__________Segundo creo el GRUPO DE SEGURIDAD para la RDS___________________
+
+  DatabaseSG:
+    Type: AWS::RDS::DBSecurityGroup
+    DependsOn: myVPC #***** Estableciendo dependencia, el grupo de seguridad solo se crea si ya esta creda la VPC
+    Properties:
+      GroupDescription: GrupodeSeguridadDB
+      DBSecurityGroupIngress:
+        - CIDRIP: 0.0.0.0/0 
+      EC2VpcId: !Ref myVPC  # Corresponde al RECURSO VPC creado
+      Tags: 
+        - 
+          Key: Name
+          Value: RDSSecurityGroup # Es el nombre que le doy 
+
+#_________ Creo la RDS (Amazon Relational Database)_____________________
+
+  RDS:
+    Type: AWS::RDS::DBInstance
+    DependsOn: rdsDBSubnetGroup #***** Definiendo dependencia la RDS solo se comienza a desplegar si la subnet de la RDS ya esta creada
+    Properties:
+      DBName: TestDB
+      Engine: MySQL 
+      MasterUsername: MyName
+      MasterUserPassword: MyPassword
+      DBInstanceClass: db.t2.micro
+      DBSecurityGroups: #***** Enviando el grupo de seguridad
+      - Ref: DatabaseSG # Relaciono el RECURSO grupo de seguridad para la RDS
+      AllocatedStorage: '5' #***** Definiendo el Storge de la instancia
+      DBSubnetGroupName: !Ref rdsDBSubnetGroup #***** Relaciono el RECURSO de la subnet de la RDS
+      DBInstanceIdentifier: RDSMaik
+      Tags: 
+        - 
+          Key: Name
+          Value: RDS_Maikol # Es el nombre que le doy 
+
+#__________________________

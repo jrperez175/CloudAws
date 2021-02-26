@@ -1,0 +1,130 @@
+[
+    {
+        "ParameterKey": "pProjectName",
+        "ParameterValue": "#{project-name}#"
+    },
+    {
+        "ParameterKey": "pApplicationCode",
+        "ParameterValue": "#{application-code}#"
+    },
+    {
+        "ParameterKey": "pPrivateSubnet1",
+        "ParameterValue": "#{subnet-app-1}#"
+    },
+    {
+        "ParameterKey": "pKMSKeyId",
+        "ParameterValue": "#{kms-key-arn}#"
+    },
+    {
+        "ParameterKey": "pPrivateSubnet2",
+        "ParameterValue": "#{subnet-app-2}#"
+    },
+    {
+        "ParameterKey": "pInstanceType",
+        "ParameterValue": "#{var-ec2-instance-type}#"
+    },
+    {
+        "ParameterKey": "pInstanceAMI",
+        "ParameterValue": "#{murex-ami-id}#"
+    },
+    {
+        "ParameterKey": "pNodesMaxSize",
+        "ParameterValue": "#{var-asg-max-nodes}#"
+    },
+    {
+        "ParameterKey": "pNodesMinSize",
+        "ParameterValue": "#{var-asg-min-nodes}#"
+    },
+    {
+        "ParameterKey": "pNodesMinSizeLowResources",
+        "ParameterValue": "#{var-asg-min-nodes-low-resources}#"
+    },
+    {
+        "ParameterKey": "pScaleUpWaitTime",
+        "ParameterValue": "#{app-scale-up-wait-time}#"
+    },
+    {
+        "ParameterKey": "pDownResourceCron",
+        "ParameterValue": "#{app-down-resources-time}#"
+    },
+    {
+        "ParameterKey": "pUpResourceCron",
+        "ParameterValue": "#{app-up-resources-time}#"
+    },
+    {
+        "ParameterKey": "pBucketFile",
+        "ParameterValue": "#{s3-archivos}#"
+    },
+    {
+        "ParameterKey": "pKMSKeyId",
+        "ParameterValue": "#{kms-key-arn}#"
+    },
+    {
+        "ParameterKey": "pEnvironment",
+        "ParameterValue": "#{env}#"
+    },
+    {
+        "ParameterKey": "pBucketControlM",
+        "ParameterValue": "#{bucket-control-m}#"
+    },
+    {
+        "ParameterKey": "pDomain",
+        "ParameterValue": "#{ec2-domain}#"
+    },
+    {
+        "ParameterKey": "pHostedZoneID",
+        "ParameterValue": "#{ec2-hostedzoneid}#"
+    },
+    {
+        "ParameterKey": "pFSxDns",
+        "ParameterValue": "#{fsx-dns}#"
+    },
+    {
+        "ParameterKey": "pStandardNameServer",
+        "ParameterValue": "#{var-standardservername}#"
+    },
+    {
+      "ParameterKey": "pAmbientemurex",
+      "ParameterValue": "#{env-murex}#"
+    },
+    {
+      "ParameterKey": "pRolmurex",
+      "ParameterValue": "#{var-murex-rol}#"
+    },
+    {
+        "ParameterKey": "pDBName",
+        "ParameterValue": "#{rds-db-name}#"
+    },
+    {
+        "ParameterKey": "pPort",
+        "ParameterValue": "#{rds-port}#"
+    },
+    {
+      "ParameterKey": "pDNSHost",
+      "ParameterValue": "#{rds-dnshost}#"
+    },
+    {
+        "ParameterKey":"pVarCodeUrlRepo",
+        "ParameterValue":"#{varcodeurlrepo}#"
+    },
+    {
+        "ParameterKey": "pKmsIdTransversal",
+        "ParameterValue": "#{kms-Id-Transversal}#"
+    },
+    {
+        "ParameterKey": "pBucketTransversal",
+        "ParameterValue": "#{s3-transversal}#"
+    },
+    {
+        "ParameterKey":"pIdAccountSharedSrv",
+        "ParameterValue":"#{sharedservicesaccount}#"
+    },
+    {
+        "ParameterKey":"pLogGroupRetentionInDays",
+        "ParameterValue":"#{log-group-retetion-in-days}#"
+    },        
+    {
+        "ParameterKey":"pIpchrony",
+        "ParameterValue":"#{ip-server-ntp}#"
+    }
+]

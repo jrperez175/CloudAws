@@ -1,0 +1,1522 @@
+
+resources:
+  repositories:
+  - repository: Cloud_AWS_Templates
+    type: git
+    ref: refs/heads/trunk
+    name: Cloud_AWS_Templates
+
+  - repository: NU0007001_ciberseguridad_iac
+    type: git
+    ref: refs/heads/trunk
+    name: NU0007001_ciberseguridad_iac
+
+trigger:
+  branches:
+    include:
+      - trunk
+  paths:
+    exclude:
+      - lambda_dns/*
+      - lambdas_bd/*
+
+variables:
+  application-code: 'aw0434001'
+  project-name: 'murex-core'
+  pmo: 'pmo30686'
+  cost-center: 'c103500025'
+  business-service: 'negocios-de-inversion'
+  root-directory: '$(System.DefaultWorkingDirectory)'
+
+  cloudformation-stack-name: '$(application-code)-$(project-name)'
+
+  cloudformation-template-rds: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-rds.yaml'
+  cloudformation-params-rds: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-rds.json'
+
+  cloudformation-template-s3: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-s3.yaml'
+  cloudformation-params-s3: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-s3.json'
+
+  cloudformation-template-kms: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-kms.yaml'
+  cloudformation-params-kms: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-kms.json'
+
+  cloudformation-template-s3-kms: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-s3-kms.yaml'
+  cloudformation-params-s3-kms: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-s3-kms.json'
+
+  cloudformation-template-sftp: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-sftp.yaml'
+  cloudformation-params-sftp: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-sftp.json'
+
+  # cloudformation-template-cw: '$(System.DefaultWorkingDirectory)/cloudformation/template-cw.yaml'
+  # cloudformation-params-cw: '$(System.DefaultWorkingDirectory)/config/params-cw.json'
+
+  cloudformation-template-secrets: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-secrets.yaml'
+  cloudformation-params-secrets: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-secrets.json'
+
+  cloudformation-template-secrets-datical: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-secrets-datical.yaml'
+  cloudformation-params-secrets-datical: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-secrets-datical.json'
+
+  cloudformation-template-sg: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-sg.yaml'
+  cloudformation-params-sg: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-sg.json'
+
+  cloudformation-template-asg-var: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-asg.yaml'
+  cloudformation-params-asg-var: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-asg-var.json'
+
+  cloudformation-template-asg-mlc: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-asg.yaml'
+  cloudformation-params-asg-mlc: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-asg-mlc.json'
+
+  cloudformation-template-asg-business: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-asg.yaml'
+  cloudformation-params-asg-business: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-asg-business.json'
+
+  cloudformation-template-asg-orchestrator: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-asg.yaml'
+  cloudformation-params-asg-orchestrator: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-asg-orchestrator.json'
+
+  cloudformation-template-planbackup-anualmurex: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-planbackup-anualmurex.yaml'
+  cloudformation-params-planbackup-anualmurex: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-planbackup-anualmurex.json'
+
+  cloudformation-template-fsx: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-fsx.yaml'
+  cloudformation-params-fsx: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-fsx.json'
+
+  cloudformation-template-s3-prerequisitos-infra: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-s3-prerequisitos-infra.yaml'
+  cloudformation-params-s3-prerequisitos-infra: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-s3-prerequisitos-infra.json'
+
+  cloudformation-template-csr: '$(System.DefaultWorkingDirectory)/infrastructure/cloudformation/template-csr.yaml'
+  cloudformation-params-csr: '$(System.DefaultWorkingDirectory)/infrastructure/config/params-csr.json'
+
+stages:
+
+ - stage: linters
+   displayName: Validations
+   jobs:
+     - template: /aw0000_cloud/templates/job-templates/validations.yaml@Cloud_AWS_Templates
+
+ - stage: linters_cybersecurity
+   displayName: Validations Cybersecurity
+   jobs:
+     - template: validations.yaml@NU0007001_ciberseguridad_iac
+
+
+# #Recursos transversales a todo Desarrollo
+
+ - stage: deploy_dev
+   dependsOn:
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity')
+   displayName: Deploy dev
+   variables:
+   - group: 'aw0434001_murex_core_variables_dev_aws_negocios_de_inversion'
+
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: s3-prerequisitos-infra
+       name: '$(cloudformation-stack-name)-s3-prerequisitos-infra'
+       jobname: s3_prerequisitos_infra
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: s3-kms
+       name: '$(cloudformation-stack-name)-$(env)-s3-kms'
+       jobname: s3_kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-shared-aws
+       resource: sftp
+       name: '$(cloudformation-stack-name)-$(env)-sftp'
+       jobname: sftp
+       depends:
+         - s3_kms
+
+# # #DEV1
+
+ - stage: deploy_dev1
+   dependsOn:
+     - deploy_dev
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_dev')
+   displayName: Deploy dev1
+   variables:
+   - group: 'aw0434001_murex_core_variables_dev_dev1_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_dev_aws_negocios_de_inversion'
+
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # #DEV2
+
+ - stage: deploy_dev2
+   dependsOn:
+     - deploy_dev
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_dev')
+   displayName: Deploy dev2
+   variables:
+   - group: 'aw0434001_murex_core_variables_dev_dev2_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_dev_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # #DEV3
+
+ - stage: deploy_dev3
+   dependsOn:
+     - deploy_dev
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_dev')
+   displayName: Deploy dev3
+   variables:
+   - group: 'aw0434001_murex_core_variables_dev_dev3_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_dev_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # #T7
+
+ - stage: deploy_t7
+   dependsOn:
+     - deploy_dev
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_dev')
+   displayName: Deploy t7
+   variables:
+   - group: 'aw0434001_murex_core_variables_dev_t7_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_dev_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # # # # #Datical
+
+ - stage: deploy_dat
+   dependsOn:
+     - deploy_dev
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_dev')
+   displayName: Deploy dat
+   variables:
+   - group: 'aw0434001_murex_core_variables_dev_dat_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_dev_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets-datical'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+  
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-dev-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+
+# #Recursos transversales a todo QA
+#
+ - stage: deploy_qa
+   dependsOn:
+     - linters
+     - linters_cybersecurity
+     - deploy_dev
+     - deploy_dev1
+     - deploy_dev2
+     - deploy_dev3
+     - deploy_t7
+     - deploy_dat
+   condition: succeeded ('linters','linters_cybersecurity', 'deploy_dev','deploy_dev1','deploy_dev2','deploy_dev3','deploy_t7')
+   displayName: Deploy qa
+   variables:
+   - group: 'aw0434001_murex_core_variables_qa_aws_negocios_de_inversion'
+
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: s3-kms
+       name: '$(cloudformation-stack-name)-$(env)-s3-kms'
+       jobname: s3_kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-shared-aws
+       resource: sftp
+       name: '$(cloudformation-stack-name)-$(env)-sftp'
+       jobname: sftp
+       depends:
+         - s3_kms
+
+# # # # # #QA1
+
+ - stage: deploy_qa1
+   dependsOn:
+     - deploy_qa
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_qa')
+   displayName: Deploy qa1
+   variables:
+   - group: 'aw0434001_murex_core_variables_qa_qa1_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_qa_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # # # # #QA2
+
+ - stage: deploy_qa2
+   dependsOn:
+     - deploy_qa
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_qa')
+   displayName: Deploy qa2
+   variables:
+   - group: 'aw0434001_murex_core_variables_qa_qa2_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_qa_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # # # #qa3
+
+ - stage: deploy_qa3
+   dependsOn:
+     - deploy_qa
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_qa')
+   displayName: Deploy qa3
+   variables:
+   - group: 'aw0434001_murex_core_variables_qa_qa3_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_qa_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-qa-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # # Recursos transversales a todo PDN
+
+ - stage: deploy_pdn
+   dependsOn:
+     - linters
+     - linters_cybersecurity
+     - deploy_qa
+     - deploy_qa1
+     - deploy_qa2
+     - deploy_qa3
+   condition: succeeded ('linters','linters_cybersecurity', 'deploy_qa','deploy_qa1','deploy_qa2','deploy_qa3','deploy_dat')
+   displayName: Deploy pdn
+   variables:
+   - group: 'aw0434001_murex_core_variables_pdn_aws_negocios_de_inversion'
+
+   jobs:
+
+      - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+        parameters:
+          account: bancolombia-negocios-inversion-pdn-aws
+          resource: s3-kms
+          name: '$(cloudformation-stack-name)-$(env)-s3-kms'
+          jobname: s3_kms
+          
+      - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+        parameters:
+          account: bancolombia-shared-pdn-aws
+          resource: sftp
+          name: '$(cloudformation-stack-name)-$(env)-sftp'
+          jobname: sftp
+          depends:
+            - s3_kms
+
+
+
+# # # # Restauraciones
+
+
+ - stage: deploy_res
+   dependsOn:
+     - deploy_pdn
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity','deploy_pdn')
+   displayName: Deploy res
+   variables:
+   - group: 'aw0434001_murex_core_variables_pdn_res_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_pdn_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx
+
+# # # # Murex y Datamart
+
+ - stage: deploy_mx
+   dependsOn:
+     - deploy_pdn
+     - linters
+     - linters_cybersecurity
+   condition: succeeded ('linters','linters_cybersecurity', 'deploy_pdn')
+   displayName: Deploy mx
+   variables:
+   - group: 'aw0434001_murex_core_variables_pdn_mx_aws_negocios_de_inversion'
+   - group: 'aw0434001_murex_core_variables_pdn_aws_negocios_de_inversion'
+   jobs:
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: sg
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-sg'
+       jobname: sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: kms
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-kms'
+       jobname: kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: fsx
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-fsx'
+       jobname: fsx
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: s3
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-s3'
+       jobname: s3
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: secrets
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-secrets'
+       jobname: secrets
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-orchestrator
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-orchestrator'
+       jobname: asg_orchestrator
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-business
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-business'
+       jobname: asg_business
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-mlc
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-mlc'
+       jobname: asg_mlc
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: asg-var
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-asg-var'
+       jobname: asg_var
+       depends:
+         - sg
+         - kms
+         - fsx
+         - secrets
+         - csr
+         - asg_orchestrator
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: rds
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-rds'
+       jobname: rds
+       dbdns: true
+       depends:
+         - kms
+         - sg
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: planbackup-anualmurex
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-planbackup-anualmurex'
+       jobname: planbackup_anualmurex
+       depends:
+         - kms
+
+   - template: /aw0000_cloud/templates/job-templates/deployment.yaml@Cloud_AWS_Templates
+     parameters:
+       account: bancolombia-negocios-inversion-pdn-aws
+       resource: csr
+       name: '$(cloudformation-stack-name)-$(env)-$(env-murex)-csr'
+       jobname: csr
+       depends:
+         - sg
+         - fsx

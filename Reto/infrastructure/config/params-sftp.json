@@ -1,0 +1,22 @@
+[
+    {
+      "ParameterKey": "pBucketTransversal",
+      "ParameterValue": "#{s3-transversal}#"
+    },
+    {
+      "ParameterKey": "pSSHKey",
+      "ParameterValue": "#{sftp-ssh-key}#"
+    },
+    {
+      "ParameterKey": "pImportBase",
+      "ParameterValue": "#{application-code}#-#{project-name}#-#{env}#"
+    },
+    {
+      "ParameterKey": "pKMSKeyArnTransversal",
+      "ParameterValue": "#{kms-key-arn-transversal}#"
+    },
+    {
+      "ParameterKey": "pIdSftpServer",
+      "ParameterValue": "#{sftp-id-server}#"
+    }
+  ]

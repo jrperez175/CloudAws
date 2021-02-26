@@ -1,0 +1,107 @@
+[
+
+  {
+      "ParameterKey": "pProjectName",
+      "ParameterValue": "#{project-name}#"
+  },
+  {
+      "ParameterKey": "pApplicationCode",
+      "ParameterValue": "#{application-code}#"
+  },
+  {
+      "ParameterKey": "pEnvironment",
+      "ParameterValue": "#{env}#"
+  },
+  {
+      "ParameterKey": "pKMSKeyId",
+      "ParameterValue": "#{kms-key-arn}#"
+  },
+  {
+      "ParameterKey": "pPrivateSubnetDB1",
+      "ParameterValue": "#{subnet-db-1}#"
+  },
+  {
+      "ParameterKey": "pPrivateSubnetDB2",
+      "ParameterValue": "#{subnet-db-2}#"
+  },
+  {
+    "ParameterKey": "pProcesses",
+    "ParameterValue": "#{rds-processes}#"
+  },
+  {
+    "ParameterKey": "pOpenCursors",
+    "ParameterValue": "#{rds-open-cursors}#"
+  },
+  {
+      "ParameterKey": "pDBName",
+      "ParameterValue": "#{rds-db-name}#"
+  },
+  {
+      "ParameterKey": "pDBInstanceType",
+      "ParameterValue": "#{rds-instance-type}#"
+  },
+  {
+      "ParameterKey": "pDBEngine",
+      "ParameterValue": "#{rds-engine}#"
+  },
+  {
+      "ParameterKey": "pDBEngineVersion",
+      "ParameterValue": "#{rds-engine-version}#"
+  },
+  {
+      "ParameterKey": "pDBLicenseModel",
+      "ParameterValue": "#{rds-license-model}#"
+  },
+  {
+      "ParameterKey": "pDBStorageType",
+      "ParameterValue": "#{rds-storage-type}#"
+  },
+  {
+      "ParameterKey": "pDBAllocatedStorage",
+      "ParameterValue": "#{rds-allocated-storage}#"
+  },
+  {
+      "ParameterKey": "pDBBackupRetentionPeriod",
+      "ParameterValue": "#{rds-backup-retention}#"
+  },
+  {
+      "ParameterKey": "pDBMultiAZ",
+      "ParameterValue": "#{rds-multi-az}#"
+  },
+  {
+      "ParameterKey": "pPort",
+      "ParameterValue": "#{rds-port}#"
+  },
+  {
+      "ParameterKey": "pSnapshotIdentifier",
+      "ParameterValue": "#{rds-snapshot-identifier}#"
+  },
+  {
+      "ParameterKey": "pBucketFile",
+      "ParameterValue": "#{s3-transversal}#"
+  },
+  {
+      "ParameterKey": "pBucketTransversal",
+      "ParameterValue": "#{s3-archivos}#"
+  },
+  {
+    "ParameterKey": "pBucketLambdas",
+    "ParameterValue": "#{bucket-lambdas-bd}#"
+},
+  {
+    "ParameterKey": "pAmbientemurex",
+    "ParameterValue": "#{env-murex}#"
+  },
+  {
+    "ParameterKey": "pSSMDBSGTransversal",
+    "ParameterValue": "#{rds-sg-transversal}#"
+  },
+  {
+      "ParameterKey": "pDefaultVPC",
+      "ParameterValue": "#{id-vpc}#"
+  },
+  {
+      "ParameterKey": "pDBMaxAllocatedStorage",
+      "ParameterValue": "#{rds-max-allocated-storage}#"
+  }
+]

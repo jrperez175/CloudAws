@@ -1,0 +1,108 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This template deploys an S3 Bucket with encryption
+
+
+Parameters:
+
+  pKMSKeyId:
+    Description: The ARN of the AWS Key Management Service (AWS KMS)
+    Type : AWS::SSM::Parameter::Value<String>
+
+  pAmbientemurex:
+      Description: Ambiente de Murex'
+      Type: String
+
+Resources:
+
+  rBucketArchivos:
+      Type: AWS::S3::Bucket
+      Properties:
+        AccessControl: Private
+        BucketName: !Join ["-", [!Ref 'AWS::StackName' , "archivos"]]
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                KMSMasterKeyID: !Ref pKMSKeyId
+                SSEAlgorithm: "aws:kms"
+        VersioningConfiguration:
+          Status: Enabled
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        Tags:
+          - Key: Name
+            Value: !Ref AWS::StackName
+          - Key: bancolombia:murex_environment
+            Value: !Ref pAmbientemurex
+          - Key: "bancolombia:info-clientes-proveedores-empleados"
+            Value: "clientes-empleados"
+          - Key: "bancolombia:info-productos"
+            Value: "si"
+          - Key: "bancolombia:info-finan-conta-legal"
+            Value: "todos"
+          - Key: "bancolombia:riesgos-seguridad"
+            Value: "ambas"
+          - Key: "bancolombia:sox-compliance"
+            Value: "si"
+          - Key: "bancolombia:impact"
+            Value: "bia"
+          - Key: "bancolombia:clasificacion-confidencialidad"
+            Value: "confidencial"
+          - Key: "bancolombia:clasificacion-integridad"
+            Value: "impacto critico"
+          - Key: "bancolombia:clasificacion-disponibilidad"
+            Value: "impacto critico"
+          - Key: "bancolombia:dominio-informacion"
+            Value: "productos-financiera-contable-legal-riesgos-seguridad"
+          - Key: "bancolombia:datos-personales"
+            Value: "clientes-empleados"
+          - Key: "bancolombia:cumplimiento"
+            Value: "sox-bia"
+
+  rS3PolicyArchivos:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: rBucketArchivos
+    Properties:
+      Bucket: !Ref rBucketArchivos
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Join ["", [ 'arn:aws:iam::', !Ref AWS::AccountId , ':root']]
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:GetObjectACL
+              - s3:PutObjectACL
+              - s3:ListBucket
+              - s3:GetBucketLocation
+            Resource:
+              - !Join ['', ['arn:aws:s3:::', !Ref 'rBucketArchivos', /*]]
+              - !Join ['', ['arn:aws:s3:::', !Ref 'rBucketArchivos']]
+
+  # rS3PolicyArchivos:
+  #   Type: AWS::S3::BucketPolicy
+  #   DependsOn: rBucketArchivos
+  #   Properties:
+  #     Bucket: !Ref rBucketArchivos
+  #     PolicyDocument:
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             AWS: !Ref 'pS3SFTPRol'
+  #           Action:
+  #             - s3:PutObject
+  #             - s3:GetObject
+  #             - s3:GetObjectVersion
+  #             - s3:GetObjectACL
+  #             - s3:PutObjectACL
+  #             - s3:ListBucket
+  #             - s3:GetBucketLocation
+  #           Resource:
+  #             - !Join ['', ['arn:aws:s3:::', !Ref 'rBucketArchivos']]
+  #             - !Join ['', ['arn:aws:s3:::', !Ref 'rBucketArchivos', /*]]

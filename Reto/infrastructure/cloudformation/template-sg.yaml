@@ -1,0 +1,838 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Creacion SG-Murex-Core
+Parameters:
+
+  pDefaultVPC:
+    Description: VPC donde debe quedar asociada la instancia
+    Type: 'AWS::EC2::VPC::Id'
+
+  pPuertoRDS:
+    Description: Puerto de la rds
+    Type: String
+
+  pEnvironment:
+    Description: Environment where it unfolds.
+    Type: String
+
+Conditions:
+  cPdnEnv: !Equals
+    - !Ref pEnvironment
+    - pdn
+  cQaEnv: !Equals
+    - !Ref pEnvironment
+    - qa
+  cDevEnv: !Equals
+    - !Ref pEnvironment
+    - dev
+
+Resources:
+
+  rSecurityGroupAsgOrq:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access ASG Orq
+      VpcId:
+        Ref: pDefaultVPC
+      GroupName: !Join ["-", [ Ref: "AWS::StackName" , "asg-orq" ]]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !If [cPdnEnv,"27005","17005"]
+          ToPort: !If [cPdnEnv,"27006","17006"]
+          CidrIp:  !If [cPdnEnv,"10.9.137.0/25","10.8.79.0/29"]
+          Description: "Permisos cliente control M"
+        - IpProtocol: tcp
+          FromPort: !If [cPdnEnv,"27005","17005"]
+          ToPort: !If [cPdnEnv,"27006","17006"]
+          CidrIp:  !If [cPdnEnv,"10.103.64.0/23","10.104.73.0/24"]
+          Description: "Permisos cliente control M"
+        - IpProtocol: tcp
+          FromPort: !If [cPdnEnv,"27005","17005"]
+          ToPort: !If [cPdnEnv,"27006","17006"]
+          CidrIp:  !If [cPdnEnv,"10.103.71.0/26","10.104.72.0/24"]
+          Description: "Permisos cliente control M"
+        - IpProtocol: tcp
+          FromPort: 10000
+          ToPort: 10000
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 10080
+          ToPort: 10080
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 10099
+          ToPort: 10099
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 12345
+          ToPort: 12345
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 10090
+          ToPort: 10090
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 10091
+          ToPort: 10091
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 32768
+          ToPort: 65535
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: udp
+          FromPort: 32768
+          ToPort: 65535
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 1500
+          ToPort: 1500
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 9495
+          ToPort: 9496
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 3100
+          ToPort: 3100
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkAWS:1}}'
+          Description: Rango de direcciones ip de Cyberark AWS
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkNiquia:1}}'
+          Description: Rango de direcciones ip de Cyberark Niquia
+        - IpProtocol: -1
+          CidrIp: '{{resolve:ssm:RangoIpHerramientasSeguridad:1}}'
+          Description: Rango de direcciones ip de las herramientas de seguridad Tenable
+        - Ref: AWS::NoValue
+      Tags:
+      - Key: Name
+        Value: !Join ["-", [ Ref: "AWS::StackName" , "asg-orq" ]]
+
+  rInboundRuleASGOrq1:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Properties:
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       IpProtocol: -1
+       SourceSecurityGroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Same Acceso Resource all traffic"
+
+  rInboundRuleASGOrq2:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Properties:
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       IpProtocol: -1
+       SourceSecurityGroupId:
+         Ref: rSecurityGroupAsg
+       Description: "permisos de la ASG de MLC, VAR y BS"
+
+  rInboundRuleASGOrq3:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.180.19/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos de sterling PDN"
+
+  rInboundRuleASGOrq4:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.180.20/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos de sterling PDN"
+
+  rInboundRuleASGOrq5:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.66.71/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos de sterling Qa"
+
+  rInboundRuleASGOrq6:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.66.99/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos de sterling Qa"
+
+  rInboundRuleASGOrq7:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.80.11/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos de sterling Dev"
+
+  rInboundRuleASGOrq8:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.87.132/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales del Exterior Dev"
+
+  rInboundRuleASGOrq9:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.87.133/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales del Exterior Dev"
+
+  rInboundRuleASGOrq10:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.73.167/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales del Exterior Qa"
+
+  rInboundRuleASGOrq11:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.73.168/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales del Exterior Qa"
+
+  rInboundRuleASGOrq12:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.16.101/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleASGOrq13:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.16.102/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleASGOrq14:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.16.103/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleASGOrq15:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.8.16.104/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleASGOrq16:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.52.144.28/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales del Exterior PDN "
+
+  rInboundRuleASGOrq17:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 22
+       ToPort: 22
+       CidrIp: 10.52.144.30/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "DataStage Filiales del Exterior PDN "
+
+  rInboundRuleASGOrq18:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 587
+       ToPort: 588
+       CidrIp: 10.8.69.145/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Exchange "
+
+  rInboundRuleASGOrq19:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 587
+       ToPort: 588
+       CidrIp: 10.8.69.146/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Exchange "
+
+  rInboundRuleASGOrq20:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 587
+       ToPort: 588
+       CidrIp: 10.8.69.145/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Exchange "
+
+  rInboundRuleASGOrq21:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 587
+       ToPort: 588
+       CidrIp: 10.8.69.146/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Exchange "
+
+  rInboundRuleASGOrq22:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 587
+       ToPort: 588
+       CidrIp: 10.8.42.103/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Exchange "
+
+  rInboundRuleASGOrq23:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 587
+       ToPort: 588
+       CidrIp: 10.8.42.102/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Exchange "
+
+  rInboundRuleASGOrq24:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 587
+       ToPort: 588
+       CidrIp: 10.8.42.101/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Exchange "
+
+  rInboundRuleASGOrq25:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 636
+       ToPort: 636
+       CidrIp: 10.72.134.241/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rInboundRuleASGOrq26:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 389
+       ToPort: 389
+       CidrIp: 10.72.134.241/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rInboundRuleASGOrq27:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 636
+       ToPort: 636
+       CidrIp: 10.72.134.241/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rInboundRuleASGOrq28:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 389
+       ToPort: 389
+       CidrIp: 10.72.134.241/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rInboundRuleASGOrq29:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 389
+       ToPort: 389
+       CidrIp: 10.72.132.200/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rInboundRuleASGOrq30:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 636
+       ToPort: 636
+       CidrIp: 10.72.132.200/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rInboundRuleASGOrq31:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 389
+       ToPort: 389
+       CidrIp: 10.72.133.10/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rInboundRuleASGOrq32:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort: 636
+       ToPort: 636
+       CidrIp: 10.72.133.10/32
+       GroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "Permisos Directorio Activo"
+
+  rSecurityGroupAsg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access asg var
+      VpcId:
+        Ref: pDefaultVPC
+      GroupName: !Join ["-", [ Ref: "AWS::StackName" , "asg" ]]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkAWS:1}}'
+          Description: Rango de direcciones ip de Cyberark AWS
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkNiquia:1}}'
+          Description: Rango de direcciones ip de Cyberark Niquia
+        - IpProtocol: -1
+          CidrIp: 10.0.0.0/8
+          Description: "Permisos cliente murex"
+        - IpProtocol: -1
+          CidrIp: '{{resolve:ssm:RangoIpHerramientasSeguridad:1}}'
+          Description: Rango de direcciones ip de las herramientas de seguridad Tenable
+        - Ref: AWS::NoValue
+      Tags:
+      - Key: Name
+        Value: !Join ["-", [ Ref: "AWS::StackName" , "asg" ]]
+
+  rInboundRuleASG1:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Properties:
+       GroupId:
+         Ref: rSecurityGroupAsg
+       IpProtocol: -1
+       SourceSecurityGroupId:
+         Ref: rSecurityGroupAsg
+       Description: "Same Acceso Resource all traffic"
+
+  rInboundRuleASG2:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Properties:
+       GroupId:
+         Ref: rSecurityGroupAsg
+       IpProtocol: -1
+       SourceSecurityGroupId:
+         Ref: rSecurityGroupAsgOrq
+       Description: "permisos de la ASG de Orquestacion"
+
+  rSecurityGroupRDS:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access RDS
+      VpcId:
+        Ref: pDefaultVPC
+      GroupName: !Join ["-", [ Ref: "AWS::StackName" , "rds" ]]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort:
+            Ref: pPuertoRDS
+          ToPort:
+            Ref: pPuertoRDS
+          CidrIp: 10.0.0.0/8
+          Description: "Acceso desde red Bancolombia"
+        - IpProtocol: tcp
+          FromPort:
+            Ref: pPuertoRDS
+          ToPort:
+            Ref: pPuertoRDS
+          SourceSecurityGroupId:
+            Ref: rSecurityGroupAsgOrq
+          Description: "Acceso EC2 to RDS"
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkAWS:1}}'
+          Description: Rango de direcciones ip de Cyberark AWS
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '{{resolve:ssm:RangoIpCyberarkNiquia:1}}'
+          Description: Rango de direcciones ip de Cyberark Niquia
+        - IpProtocol: -1
+          CidrIp: '{{resolve:ssm:RangoIpHerramientasSeguridad:1}}'
+          Description: Rango de direcciones ip de las herramientas de seguridad Tenable
+        - Ref: AWS::NoValue
+      Tags:
+      - Key: Name
+        Value: !Join ["-", [ Ref: "AWS::StackName" , "rds" ]]
+
+  rInboundRuleRDS1:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.87.132/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales del Exterior Dev"
+
+  rInboundRuleRDS2:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cDevEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.87.133/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales del Exterior Dev"
+
+  rInboundRuleRDS3:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.73.167/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales del Exterior Qa"
+
+  rInboundRuleRDS4:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cQaEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.73.168/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales del Exterior Qa"
+
+  rInboundRuleRDS5:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.16.101/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleRDS6:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.16.102/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleRDS7:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.16.103/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleRDS8:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.8.16.104/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales Nacionales PDN"
+
+  rInboundRuleRDS9:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.52.144.28/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales del Exterior PDN "
+
+  rInboundRuleRDS10:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Condition: cPdnEnv
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.52.144.30/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "DataStage Filiales del Exterior PDN "
+
+  rInboundRuleRDS11:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Properties:
+       IpProtocol: tcp
+       FromPort:
+         Ref: pPuertoRDS
+       ToPort:
+         Ref: pPuertoRDS
+       CidrIp: 10.72.133.4/32
+       GroupId:
+         Ref: rSecurityGroupRDS
+       Description: "Datical"
+
+  rSecurityGroupfsx:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access fsx Lustre
+      VpcId:
+        Ref: pDefaultVPC
+      GroupName: !Join ["-", [ Ref: "AWS::StackName" , "fsx-lustre" ]]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1021
+          ToPort: 1023
+          SourceSecurityGroupId:
+            Ref: rSecurityGroupAsgOrq
+          Description: "Acceso ASG-Orq to fsx"
+        - IpProtocol: tcp
+          FromPort: 988
+          ToPort: 988
+          SourceSecurityGroupId:
+            Ref: rSecurityGroupAsgOrq
+          Description: "Acceso ASG-Orq to fsx "
+        - IpProtocol: tcp
+          FromPort: 1021
+          ToPort: 1023
+          SourceSecurityGroupId:
+            Ref: rSecurityGroupAsg
+          Description: "Acceso ASG to fsx"
+        - IpProtocol: tcp
+          FromPort: 988
+          ToPort: 988
+          SourceSecurityGroupId:
+            Ref: rSecurityGroupAsg
+          Description: "Acceso ASG to fsx "
+      Tags:
+      - Key: Name
+        Value: !Join ["-", [ Ref: "AWS::StackName" , "fsx-lustre" ]]
+
+  rInboundRulefsx1:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Properties:
+       GroupId:
+         Ref: rSecurityGroupfsx
+       IpProtocol: tcp
+       FromPort: 1021
+       ToPort: 1023
+       SourceSecurityGroupId:
+         Ref: rSecurityGroupfsx
+       Description: "Same Acceso Resource"
+
+  rInboundRulefsx2:
+     Type: 'AWS::EC2::SecurityGroupIngress'
+     Properties:
+       GroupId:
+         Ref: rSecurityGroupfsx
+       IpProtocol: tcp
+       FromPort: 988
+       ToPort: 988
+       SourceSecurityGroupId:
+         Ref: rSecurityGroupfsx
+       Description: "Same Acceso Resource"
+
+Outputs:
+  Message:
+    Description: Mensaje
+    Value: Los grupos de seguridad fueron creados
+  rSecurityGroupRDS:
+    Description: Id del SG de la RDS.
+    Value:
+      Ref: rSecurityGroupRDS
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "rds" ]]
+  rSecurityGroupAsgOrq:
+    Description: Id del SG de la ASG orq.
+    Value:
+      Ref: rSecurityGroupAsgOrq
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "asg-orq" ]]
+  rSecurityGroupAsg:
+    Description: Id del SG de la EC2.
+    Value:
+      Ref: rSecurityGroupAsg
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "asg" ]]
+  rSecurityGroupfsx:
+    Description: Id del SG de la fsx.
+    Value:
+      Ref: rSecurityGroupfsx
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "fsx-lustre" ]]

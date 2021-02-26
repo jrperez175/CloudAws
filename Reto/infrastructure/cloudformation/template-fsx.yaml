@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Cloud Formation para crear disco FSx LUSTRE
+
+Parameters:
+
+  pApplicationCode:
+    Description: Codigo de la aplicacion.
+    Type: String
+
+  pEnvironment:
+    Description: FSx de ambiente a desplegar
+    Type: String
+
+  pPrivateSubnetDB1:
+    Description: ID of private subnet BD 1.
+    Type: AWS::EC2::Subnet::Id
+
+  pProjectName:
+    Description: Nombre del proyecto.
+    Type: String
+
+  pKMSKeyId:
+    Description: Llave KMS para encripcion de discos (varia entre cuentas AWS)
+    Type : AWS::SSM::Parameter::Value<String>
+
+  pAutomaticBackupRetentionDays:
+    Description: El número de días que se conservan las copias de seguridad automáticas
+    Type: String
+
+  pDailyAutomaticBackupStartTime:
+    Description: A recurring daily time, in the format HH:MM.
+    Type: String
+
+  pAmbientemurex:
+      Description: Ambiente de Murex'
+      Type: String
+
+Conditions:
+  cPdnEnv:
+    !Equals [ !Ref pEnvironment, "pdn"]
+
+Resources:
+  rLustreFileSystem:
+    Type: AWS::FSx::FileSystem
+    Properties:
+      FileSystemType: "LUSTRE"
+      KmsKeyId: !Ref pKMSKeyId
+      StorageCapacity: 6000
+      StorageType: HDD
+      SubnetIds:
+        - Ref: pPrivateSubnetDB1
+      SecurityGroupIds:
+        - Fn::ImportValue:
+            Fn::Join:  ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex, "sg-fsx-lustre" ]]
+      Tags:
+        - Key: "Name"
+          Value: !Ref AWS::StackName
+        - Key: "bancolombia:info-clientes-proveedores-empleados"
+          Value: "clientes-empleados"
+        - Key: "bancolombia:info-productos"
+          Value: "si"
+        - Key: "bancolombia:info-finan-conta-legal"
+          Value: "todos"
+        - Key: "bancolombia:riesgos-seguridad"
+          Value: "ambas"
+        - Key: "bancolombia:sox-compliance"
+          Value: "si"
+        - Key: "bancolombia:impact"
+          Value: "bia"
+        - Key: "bancolombia:clasificacion-confidencialidad"
+          Value: "confidencial"
+        - Key: "bancolombia:clasificacion-integridad"
+          Value: "impacto critico"
+        - Key: "bancolombia:clasificacion-disponibilidad"
+          Value: "impacto critico"
+        - Key: "bancolombia:cumplimiento"
+          Value: "sox-bia"
+        - Key: "bancolombia:datos-personales"
+          Value: "clientes-empleados"
+        - Key: "bancolombia:dominio-informacion"
+          Value: "productos-financiera-contable-legal-riesgos-seguridad"
+        - Key: "bancolombia:bkmensual"
+          Value: !If [cPdnEnv,"fsx","fsx"]
+        - Key: "bancolombia:bkdiario"
+          Value: !If [cPdnEnv,"fsx","fsx"]
+
+
+
+      LustreConfiguration:
+        CopyTagsToBackups: true
+        DeploymentType: "PERSISTENT_1"
+        DriveCacheType: READ
+        PerUnitStorageThroughput: 12
+        WeeklyMaintenanceStartTime: "7:01:00"
+        AutomaticBackupRetentionDays:
+          Ref: pAutomaticBackupRetentionDays
+        DailyAutomaticBackupStartTime:
+          Ref: pDailyAutomaticBackupStartTime
+
+  rFSxLatestDNSandID:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: !Join ["-", [!Ref 'AWS::StackName' ,'id-dns-latest'] ]
+      Type: "String"
+      Value:
+        Fn::Join: ["", [!Ref 'rLustreFileSystem', '.fsx.us-east-1.amazonaws.com@tcp:/' , !GetAtt 'rLustreFileSystem.LustreMountName'  ]]
+      Description: !Join [ '', [ 'Ultima Id y DNS FSx   ', !Ref 'AWS::StackName'] ]
+      Tags:
+        "Environment": !Ref pEnvironment
+
+  rFSxLatestID:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: !Join ["-", [!Ref 'AWS::StackName' ,'id-latest'] ]
+      Type: "String"
+      Value: !Ref rLustreFileSystem
+      Description: !Join [ '', [ 'Ultima Id FSx', !Ref 'AWS::StackName'] ]
+      Tags:
+        "Environment": !Ref pEnvironment

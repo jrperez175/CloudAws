@@ -1,0 +1,14 @@
+[
+    {
+        "ParameterKey": "pSNSAppTopicEmailTesoreria",
+        "ParameterValue": "#{email-app}#"
+    },
+    {
+        "ParameterKey": "pInstanceId",
+        "ParameterValue": "#{instance-id}#"
+    },
+    {
+        "ParameterKey": "pAlertWrapperTopic",
+        "ParameterValue": "#{pagerdutty-alert-topic}#"
+    }
+]

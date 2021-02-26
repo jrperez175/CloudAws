@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ' Murex Automatizacion Keystore '
+
+############################## Parameters ##############################
+Parameters:
+  pApplicationCode:
+    Description: Codigo de la aplicacion.
+    Type: String
+    Default: aw0434001
+
+  pFSxDns:
+    Description: The FSx Disk ID and DNS
+    Type: AWS::SSM::Parameter::Value<String>
+
+  pInstanceAMI:
+    Description: AMI used to deploy the instances
+    Type : String
+
+  pPrivateSubnet1:
+    Description: ID of private subnet 1.
+    Type: AWS::EC2::Subnet::Id
+
+  pCostCenter:
+    Description: Centro Costos del proyecto.
+    Type: String
+    Default: pmo30686
+
+  pOwner:
+    Description: Unidad de Negocio de la de la aplicacion.
+    Type: String
+    Default: pmo30686
+
+  pProjectName:
+    Description: Nombre del proyecto.
+    Type: String
+    Default: murex-core
+
+  pEnvironment:
+    Type: String
+    Description: Environment of Solution
+    Default: dev
+
+  pEnvironmentmurex:
+    Type: String
+    Description: Environment of Solution
+    Default: dev1
+
+
+  pCerPkiArn: ## Parametros PKI - Certificados Digitales
+    Description: The ARN of the SNS topic used to request a PKI Certificate.
+    Type: String
+    Default: arn:aws:sns:us-east-1:126174654303:pki-qa
+    #Default: arn:aws:sns:us-east-1:831688958710:pki-pdn
+
+  pCerCommonName01: ## Parametros Certificados
+    Description: Common Name for Certificate 01.
+    Type: String
+    Default: murex-core-orchestrator-dev-dev1.apps.ambientesbc.lab   #CommonName Del Certificado Digital
+
+  pCerSans01:
+    Description: SANS for Certificate 01.
+    Type: String
+    Default: murex-core-orchestrator-dev-dev1.apps.ambientesbc.lab,murex-orquestador-dev #Separados por coma y sin espacios
+
+  pPasswdkeystoremq:
+    Description: Contraseña del keystore para la conexión con MQ
+    Type: String
+    NoEcho: true
+
+  pAmbientemurex:
+      Description: Ambiente de Murex'
+      Type: String
+
+############################## Resources ##############################
+
+Resources:
+
+  IAMRoleEC201:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName:  !Join ['-', [!Ref 'pApplicationCode', !Ref 'pProjectName', !Ref 'pEnvironment', !Ref 'pEnvironmentmurex', 'csr-ec2-role']]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Action:
+          - 'sts:AssumeRole'
+          Principal:
+            Service:
+            - !Sub 'ec2.${AWS::URLSuffix}'
+          Effect: Allow
+      ManagedPolicyArns:
+      - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore'
+
+      Policies:
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                - "secretsmanager:GetSecretValue"
+                Resource:
+                  - !Join ["", ["arn:", !Ref AWS::Partition , ":secretsmanager:", !Ref AWS::Region, ":", !Ref AWS::AccountId, ":secret:", !Ref AWS::StackName, "-Passwd-KeyStore*"] ]
+                  - !Join ["", ["arn:", !Ref AWS::Partition , ":secretsmanager:", !Ref AWS::Region, ":", !Ref AWS::AccountId, ":secret:", !Ref AWS::StackName, "-Secret-Keystore*"] ]
+                Effect: "Allow"
+          PolicyName: GetSecretValuecsr
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                - kms:Decrypt
+                - kms:Encrypt
+                - kms:GetKeyPolicy
+                - kms:DescribeKey
+                - kms:GenerateDataKey
+                Resource: !Join [":", ["arn", !Ref AWS::Partition , "kms", !Ref AWS::Region, !Ref AWS::AccountId, "key/*"] ]
+                Effect: Allow
+          PolicyName: kmsSecretKey
+
+  IAMInstanceProfileEC201:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      InstanceProfileName: !Sub '${AWS::StackName}'
+      Roles:
+      - !Ref IAMRoleEC201
+
+  rKmsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Join ["", ["alias/", !Ref 'pApplicationCode',"-", !Ref 'pProjectName',"-", !Ref pEnvironment,"-",!Ref pAmbientemurex,"-", "csr"]]
+      TargetKeyId: !Ref KMSKeyCertificate01
+
+  KMSKeyCertificate01:
+    Type: AWS::KMS::Key
+    Properties:
+      Enabled: True
+      EnableKeyRotation: True
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Join ['', ['arn:', !Ref 'AWS::Partition', ':iam::', !Ref 'AWS::AccountId', ':root']]
+          Action: kms:*
+          Resource: "*"
+        - Effect: Allow
+          Principal:
+            AWS:
+            - !Join ['', ['arn:', !Ref 'AWS::Partition', ':iam::', !Ref 'AWS::AccountId', ':role/pki']]
+          Action:
+          - kms:Decrypt
+          - kms:GenerateDataKey
+          Resource: "*"
+          Condition:
+            StringEquals:
+              kms:ViaService: !Join ['', ['secretsmanager.', !Ref 'AWS::Region', '.amazonaws.com']]
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            AWS: !GetAtt IAMRoleEC201.Arn
+          Action:
+          - kms:Decrypt
+          Resource: "*"
+          Condition:
+            StringEquals:
+              kms:ViaService: !Join ['', ['secretsmanager.', !Ref 'AWS::Region', '.amazonaws.com']]
+
+  ## Certificado Digital 01 - SecretsManager
+  SecretCertificateEC201:
+    Type: AWS::SecretsManager::Secret
+    Description: "Certificado para la conexion de Murex con gestor MQ"
+    Properties:
+      KmsKeyId: !Ref KMSKeyCertificate01
+      Name: !Join ["-", [!Ref 'AWS::StackName' ,"Secret-KeyStore"]]
+      SecretString: ' ' #poblar el secreto inicialmente
+
+  SecretsManagerResourcePolicyCertificateEC201:
+    Type: AWS::SecretsManager::ResourcePolicy
+    Properties:
+      ResourcePolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Join ['', ['arn:', !Ref 'AWS::Partition', ':iam::', !Ref 'AWS::AccountId', ':role/pki']]
+          Action: secretsmanager:PutSecretValue
+          Resource: !Ref SecretCertificateEC201
+        - Effect: Allow
+          Principal:
+            AWS: !GetAtt IAMRoleEC201.Arn
+          Action: secretsmanager:GetSecretValue
+          Resource: !Ref SecretCertificateEC201
+      SecretId: !Ref SecretCertificateEC201
+
+  ## Certificado Digital 01 - InternalDigitalCertificate
+  InternalCertificateEC201:
+    DependsOn:
+    - SecretsManagerResourcePolicyCertificateEC201
+    Type: Custom::InternalDigitalCertificate
+    Properties:
+      ServiceToken: !Ref pCerPkiArn
+      common_name: !Ref pCerCommonName01
+      subject_alternative_names: !Ref pCerSans01
+      aws_service: 'EC2'
+      key_type: RSA2048
+      secret_arn: !Ref SecretCertificateEC201
+      version: '001'
+
+  rSecretPasswdKeyStore:
+    Type: AWS::SecretsManager::Secret
+    Description: "Contraseña del keystore para la conexión con MQ"
+    Properties:
+      KmsKeyId: !Ref KMSKeyCertificate01
+      Name: !Join ["-", [!Ref 'AWS::StackName' ,"Passwd-KeyStore"]]
+      SecretString: !Ref pPasswdkeystoremq
+
+#Maquina para crear el certificado
+
+  LinuxInstanceAML201:
+    DependsOn:
+    - InternalCertificateEC201
+    Type: "AWS::EC2::Instance"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+      ImageId: !Ref pInstanceAMI
+      InstanceType: t3a.micro
+      IamInstanceProfile:
+        Ref: IAMInstanceProfileEC201
+      SecurityGroupIds:
+        - Fn::ImportValue: !Join ["-", [ !Ref pApplicationCode, !Ref pProjectName, !Ref pEnvironment, !Ref pAmbientemurex, "sg-asg-orq" ]]
+      SubnetId: !Ref pPrivateSubnet1
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+          - |
+            #!/bin/bash
+            set -x
+
+            #Montar FSx
+            echo "${_dnsfsx}   /murex lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
+            mount -a
+            chown murex:murex /murex
+            chmod 750 /murex
+
+            aws secretsmanager get-secret-value --secret-id ${_certificateSecret} | jq --raw-output .SecretString | jq -r .cer > /etc/pki/tls/certs/certPKIaws.cer
+            aws secretsmanager get-secret-value --secret-id ${_certificateSecret} | jq --raw-output .SecretString | jq -r .chain > /etc/pki/tls/certs/chain.cer
+            cd /etc/pki/tls/certs/
+            awk 'split_after == 1 {n++;split_after=0} /-----END CERTIFICATE-----/  {split_after=1} {print > "CA_AWS" n ".cer"}' chain.cer
+            passkeystore="$(aws secretsmanager get-secret-value --secret-id ${_certificatePasswdKeystore} | jq -r .SecretString)"
+            aws secretsmanager get-secret-value --secret-id ${_certificateSecret} | jq --raw-output .SecretString | jq -r .key > /etc/pki/tls/private/key.key
+            cat /etc/pki/tls/private/key.key /etc/pki/tls/certs/certPKIaws.cer > /etc/pki/tls/certs/TEMP.pem
+            openssl pkcs12 -export -in /etc/pki/tls/certs/TEMP.pem -out /etc/pki/tls/certs/mrxtemp.p12 -name ibmwebspheremqcnxqdmrx_cloud -passin pass:clavetemporal -passout pass:clavetemporal
+            keytool -genkeypair -alias temp -storepass $passkeystore -keypass $passkeystore -keystore /etc/pki/tls/certs/mrx.jks -dname "CN=Developer, OU=Department, O=Company,L=City, ST=State, C=CA" -keyalg RSA -keysize 2048
+            keytool -delete -alias temp -keystore /etc/pki/tls/certs/mrx.jks -storepass $passkeystore
+            keytool -v -importkeystore -srckeystore /etc/pki/tls/certs/mrxtemp.p12 -srcstoretype PKCS12 -destkeystore /etc/pki/tls/certs/mrx.jks -deststoretype JKS -deststorepass $passkeystore -srcstorepass clavetemporal
+            keytool -keypasswd -alias ibmwebspheremqcnxqdmrx_cloud -new $passkeystore -keystore /etc/pki/tls/certs/mrx.jks -storepass $passkeystore -keypass clavetemporal
+            keytool -import -trustcacerts -alias "cn=bancolombiarootcabc" -keystore /etc/pki/tls/certs/mrx.jks -file /etc/pki/tls/certs/CA_AWS1.cer -storepass $passkeystore -noprompt
+            keytool -import -trustcacerts -alias "cn=bancolombiaissuingcabc, dc=ambientesbc, dc=lab" -keystore /etc/pki/tls/certs/mrx.jks -file /etc/pki/tls/certs/CA_AWS.cer -storepass $passkeystore -noprompt
+            if [[ -f /etc/pki/tls/certs/keystorecnxqqmrx.jks ]]; then
+              mv /etc/pki/tls/certs/keystorecnxqqmrx.jks /etc/pki/tls/certs/keystorecnxqqmrx.jks_`date +%s`
+            fi
+            mv /etc/pki/tls/certs/mrx.jks /etc/pki/tls/certs/keystorecnxqqmrx.jks
+            mkdir -p  /murex/certs/murex
+            chown murex:murex -R /murex/certs/
+            chmod 700 /murex/certs/
+            if [[ -f /murex/certs/murex/keystorecnxqqmrx.jks ]]; then
+              mv /murex/certs/murex/keystorecnxqqmrx.jks /murex/certs/murex/keystorecnxqqmrx.jks_`date +%s`
+            fi
+            cp /etc/pki/tls/certs/keystorecnxqqmrx.jks /murex/certs/murex/
+            #Set private Key permissions
+            chown murex:murex /murex/certs/murex/keystorecnxqqmrx.jks
+            chmod 600 /murex/certs/murex/keystorecnxqqmrx.jks
+            chown root:root /etc/pki/tls/private/key.key
+            chmod 600 /etc/pki/tls/private/key.key
+
+          - _certificateSecret: !Ref SecretCertificateEC201
+            _pkiGetCerRole: !GetAtt InternalCertificateEC201.GetCerRoleArn
+            _pkiAcmPcaArn: !GetAtt InternalCertificateEC201.AcmPcaArn
+            _pkiCerArn: !GetAtt InternalCertificateEC201.CerArn
+            _dnsfsx: !Ref pFSxDns
+            _certificatePasswdKeystore: !Ref rSecretPasswdKeyStore
