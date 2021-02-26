@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  DynamoAtributo:
+    Type: String
+    Default: 'dni'
+  NombreDynamo:
+    Type: String
+    Default: 'platziprimer'
+
+Resources:
+  DynamodesdeCero:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: !Ref DynamoAtributo
+          AttributeType: S
+      KeySchema:
+        - AttributeName: !Ref DynamoAtributo
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification: 
+        SSEEnabled: true
+      TableName: !Ref NombreDynamo
+
+Outputs:
+  NombreDynamo:
+    Value: !Ref DynamodesdeCero
+    Export:
+      Name: NombreDynamo
