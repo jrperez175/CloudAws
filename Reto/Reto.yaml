@@ -187,15 +187,17 @@ Resources:
 #       Roles: 
 #         - Ref: rRoleIAM
 
-#   rBucketS3:
-#     Type: AWS::S3::Bucket
-#     Properties: 
-#       BucketName: !Join ["-", [ Ref: "AWS::StackName" , "bucketweb" ]]
-#       PublicAccessBlockConfiguration: 
-#         BlockPublicAcls: true
-#         BlockPublicPolicy: true
-#         IgnorePublicAcls: true
-#         RestrictPublicBuckets: true
+  rBucketS3:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Join ["-", [ Ref: "AWS::StackName" , "bucketweb" ]]
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration: 
+        IndexDocument: 'index.html'
 
 # #SG LoadBalancer
 
@@ -371,49 +373,48 @@ Resources:
 #       TreatMissingData: missing          #Establece cómo administra esta alarma los puntos de datos que faltan.  La alarma pasa a INSUFFICIENT_DATA
 #       Unit: Percent                      #La unidad de la métrica asociada a la alarma
 
-#   rdsDBSubnetGroup:
-#     Type: "AWS::RDS::DBSubnetGroup" #*****  crea un grupo de subredes de base de datos. Los grupos de subredes deben contener al menos dos subredes en dos zonas de disponibilidad diferentes de la misma región.
-#     Properties: 
-#       DBSubnetGroupDescription: Grupo Subnet RDS
-#       SubnetIds:  #***** Matriculando 2 subnet en diferentes zonas de disponibilidad
-#         - !Ref rSubnetPrivada1 #Referencio el primer RECURSO de Subnet privada
-#         - !Ref rSubnetPrivada2 #Referencio el primer RECURSO de Subnet privada
-#       Tags: 
-#         - 
-#           Key: Name
-#           Value: RDSSubnet  # Es el nombre que le doy 
+  rdsDBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup" #*****  crea un grupo de subredes de base de datos. Los grupos de subredes deben contener al menos dos subredes en dos zonas de disponibilidad diferentes de la misma región.
+    Properties: 
+      DBSubnetGroupDescription: Grupo Subnet RDS
+      SubnetIds:  #***** Matriculando 2 subnet en diferentes zonas de disponibilidad
+        - !Ref rSubnetPrivada1 #Referencio el primer RECURSO de Subnet privada
+        - !Ref rSubnetPrivada2 #Referencio el primer RECURSO de Subnet privada
+      Tags: 
+        - Key: Name
+          Value: RDSSubnet  # Es el nombre que le doy 
 
-#   rDatabaseSG:
-#     Type: AWS::RDS::DBSecurityGroup
-#     DependsOn: rMYVPC #***** Estableciendo dependencia, el grupo de seguridad solo se crea si ya esta creda la VPC
-#     Properties:
-#       GroupDescription: GrupodeSeguridadDB
-#       DBSecurityGroupIngress:
-#         - CIDRIP: 0.0.0.0/0 
-#       EC2VpcId: !Ref rMYVPC  # Corresponde al RECURSO VPC creado
-#       Tags: 
-#         - 
-#           Key: Name
-#           Value: RDSSecurityGroup # Es el nombre que le doy
+  rDatabaseSG:
+    Type: AWS::RDS::DBSecurityGroup
+    DependsOn: rMYVPC #***** Estableciendo dependencia, el grupo de seguridad solo se crea si ya esta creda la VPC
+    Properties:
+      GroupDescription: GrupodeSeguridadDB
+      DBSecurityGroupIngress:
+        - CIDRIP: 0.0.0.0/0 
+      EC2VpcId: !Ref rMYVPC  # Corresponde al RECURSO VPC creado
+      Tags: 
+        - 
+          Key: Name
+          Value: RDSSecurityGroup # Es el nombre que le doy
 
-#   rRDS:
-#     Type: AWS::RDS::DBInstance
-#     DependsOn: rdsDBSubnetGroup #***** Definiendo dependencia la RDS solo se comienza a desplegar si la subnet de la RDS ya esta creada
-#     Properties:
-#       DBName: TestDB
-#       Engine: MySQL 
-#       MasterUsername: MyName
-#       MasterUserPassword: MyPassword
-#       DBInstanceClass: db.t2.micro
-#       DBSecurityGroups: #***** Enviando el grupo de seguridad
-#       - Ref: rDatabaseSG # Relaciono el RECURSO grupo de seguridad para la RDS
-#       AllocatedStorage: '5' #***** Definiendo el Storge de la instancia
-#       DBSubnetGroupName: !Ref rdsDBSubnetGroup #***** Relaciono el RECURSO de la subnet de la RDS
-#       DBInstanceIdentifier: RDSjrperez
-#       Tags: 
-#         - 
-#           Key: Name
-#           Value: RDS_jrperez # Es el nombre que le doy  
+  # rRDS:
+  #   Type: AWS::RDS::DBInstance
+  #   DependsOn: rdsDBSubnetGroup #***** Definiendo dependencia la RDS solo se comienza a desplegar si la subnet de la RDS ya esta creada
+  #   Properties:
+  #     DBName: TestDB
+  #     Engine: MySQL 
+  #     MasterUsername: MyName
+  #     MasterUserPassword: MyPassword
+  #     DBInstanceClass: db.t2.micro
+  #     DBSecurityGroups: #***** Enviando el grupo de seguridad
+  #     - Ref: rDatabaseSG # Relaciono el RECURSO grupo de seguridad para la RDS
+  #     AllocatedStorage: '5' #***** Definiendo el Storge de la instancia
+  #     DBSubnetGroupName: !Ref rdsDBSubnetGroup #***** Relaciono el RECURSO de la subnet de la RDS
+  #     DBInstanceIdentifier: RDSjrperez
+  #     Tags: 
+  #       - 
+  #         Key: Name
+  #         Value: RDS_jrperez # Es el nombre que le doy  
 
 # Outputs:
 
