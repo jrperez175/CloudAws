@@ -81,7 +81,7 @@ Resources:
   rSubnetPrivada1:
     Type: AWS::EC2::Subnet
     Properties: 
-      AvailabilityZone: "us-east-1c"
+      AvailabilityZone: "us-east-1a"
       CidrBlock: !Ref prangoSubnetprivada1
       MapPublicIpOnLaunch: true
       VpcId: !Ref rMYVPC
@@ -92,7 +92,7 @@ Resources:
   rSubnetPrivada2:
     Type: AWS::EC2::Subnet
     Properties: 
-      AvailabilityZone: "us-east-1d"
+      AvailabilityZone: "us-east-1b"
       CidrBlock: !Ref prangoSubnetprivada2
       MapPublicIpOnLaunch: true
       VpcId: !Ref rMYVPC
@@ -134,58 +134,78 @@ Resources:
       InternetGatewayId: !Ref rInternetGatway
       VpcId: !Ref rMYVPC
 
-#   rRouteTablePublic:
-#     Type: AWS::EC2::RouteTable
-#     Properties: 
-#       VpcId: !Ref rMYVPC
-#       Tags:
-#         - Key: Name
-#           Value: !Join ["-", [ Ref: "AWS::StackName" , "RouteTablePublic" ]]
+  rRouteTablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref rMYVPC
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "RouteTablePublic" ]]
 
-#   rSubnet1AsociationRouteTable:
-#     Type: AWS::EC2::SubnetRouteTableAssociation
-#     Properties: 
-#       RouteTableId: !Ref rRouteTablePublic
-#       SubnetId: !Ref rSubnetPublica1
+  rSubnet1AsociationRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref rRouteTablePublic
+      SubnetId: !Ref rSubnetPublica1
 
-#   rSubnet2AsociationRouteTable:
-#     Type: AWS::EC2::SubnetRouteTableAssociation
-#     Properties: 
-#       RouteTableId: !Ref rRouteTablePublic
-#       SubnetId: !Ref rSubnetPublica2
+  rSubnet2AsociationRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref rRouteTablePublic
+      SubnetId: !Ref rSubnetPublica2
 
-#   rRoutePublic:
-#     Type: AWS::EC2::Route
-#     Properties: 
-#       DestinationCidrBlock: 0.0.0.0/0
-#       GatewayId: !Ref rInternetGatway
-#       RouteTableId: !Ref rRouteTablePublic
+  rRouteTablePrivate:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref rMYVPC
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "RouteTablePrivate" ]]
 
-#   rRoleIAM:
-#     Type: AWS::IAM::Role
-#     Properties: 
-#       AssumeRolePolicyDocument:
-#         Version: 2012-10-17
-#         Statement:
-#           - Effect: Allow
-#             Principal:
-#               Service:
-#               - ec2.amazonaws.com
-#             Action:
-#               - 'sts:AssumeRole'
-#       Description: Rol que permite la coneccion por SSM, a S3 y a cloudwatch 
-#       ManagedPolicyArns: 
-#         - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
-#         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-#         - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
-#       RoleName: !Join ["-", [ Ref: "AWS::StackName" , "RoleEc2" ]]
+  rSubnet3AsociationRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref rRouteTablePrivate
+      SubnetId: !Ref rSubnetPrivada1
 
-#   rPerfilRole:
-#     Type: AWS::IAM::InstanceProfile
-#     Properties: 
-#       InstanceProfileName: Perfil-ROLE-EC2
-#       Roles: 
-#         - Ref: rRoleIAM
+  rSubnet4AsociationRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref rRouteTablePrivate
+      SubnetId: !Ref rSubnetPrivada2
+
+  rRoutePublic:
+    Type: AWS::EC2::Route
+    Properties: 
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref rInternetGatway
+      RouteTableId: !Ref rRouteTablePublic
+
+  rRoleIAM:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: Rol que permite la coneccion por SSM, a S3 y a cloudwatch 
+      ManagedPolicyArns: 
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+      RoleName: !Join ["-", [ Ref: "AWS::StackName" , "RoleEc2" ]]
+
+  rPerfilRole:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: Perfil-ROLE-EC2
+      Roles: 
+        - Ref: rRoleIAM
 
   rBucketS3:
     Type: AWS::S3::Bucket
