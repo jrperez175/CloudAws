@@ -32,7 +32,7 @@ Parameters:
   pAMI: #Necesario en el Launch Configuration
     Description: Ami Ingeniero Cloud  Linux
     Type: AWS::EC2::Image::Id
-    Default: ami-0c82a966de2a44c5b
+    Default: ami-0915bcb5fa77e4892
 
   pTipoDeInstancia: #Necesario en el Launch Configuration
     Description: Tipo de instancia que levantara la AMI
@@ -100,11 +100,11 @@ Resources:
         - Key: Name
           Value: !Join ["-", [ Ref: "AWS::StackName" , "Subnetprivada2" ]]
   
-  rSecurityGroupEC2:
+  rSecurityGroupEC2Front:
     Type: AWS::EC2::SecurityGroup
     Properties: 
-      GroupDescription: Security Group con reglas de entrada para las instancias EC2
-      GroupName: SG EC2
+      GroupDescription: Security Group con reglas de entrada para las instancias EC2 FrontEnd
+      GroupName: SG EC2 Front
       SecurityGroupIngress:
       - IpProtocol: tcp
         Description:  conexion HTTP
@@ -119,7 +119,21 @@ Resources:
       VpcId: !Ref rMYVPC
       Tags: 
         - Key: Name
-          Value: !Join ["-", [ Ref: "AWS::StackName" , "SGec2" ]]
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "SGec2Front" ]]
+
+  rSecurityGroupEC2Back:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: Security Group con reglas de entrada para las instancias EC2 BackEnd
+      GroupName: SG EC2 Back
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        SourceSecurityGroupId: !Ref rSecurityGroupEC2Front
+      VpcId: !Ref rMYVPC
+      Tags: 
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "SGec2Back" ]]
+
 
   rInternetGatway:
     Type: AWS::EC2::InternetGateway
@@ -218,180 +232,298 @@ Resources:
         RestrictPublicBuckets: false
       WebsiteConfiguration: 
         IndexDocument: 'index.html'
+#--------------------------------------Load Balancer ----------------------------
+#SG LoadBalancer
 
-# #SG LoadBalancer
+  rSecurityGroupLoadBalancerFront:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: Security Group con reglas de entrada para el Load Balancer
+      GroupName: Segurity Group LoadBalancer Front
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        Description:  conexion HTTP
+        FromPort: 80  # Comienzo del rango de puertos
+        ToPort: 80    # Fin del rango de puertos
+        CidrIp: 0.0.0.0/0 #El intervalo de direcciones IPv4
+      VpcId: !Ref rMYVPC
+      Tags: 
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "SGLoadBalancerFront" ]]
 
-#   rSecurityGroupLoadBalancer:
-#     Type: AWS::EC2::SecurityGroup
-#     Properties: 
-#       GroupDescription: Security Group con reglas de entrada para el Load Balancer
-#       GroupName: Segurity Group LoadBalancer
-#       SecurityGroupIngress:
-#       - IpProtocol: tcp
-#         Description:  conexion HTTP
-#         FromPort: 80  # Comienzo del rango de puertos
-#         ToPort: 80    # Fin del rango de puertos
-#         CidrIp: 0.0.0.0/0 #El intervalo de direcciones IPv4
-#       VpcId: !Ref rMYVPC
-#       Tags: 
-#         - Key: Name
-#           Value: !Join ["-", [ Ref: "AWS::StackName" , "SGLoadBalancer" ]]
+  rSecurityGroupLoadBalancerBack:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: Security Group con reglas de entrada para el Load Balancer
+      GroupName: Segurity Group LoadBalancer Back
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        SourceSecurityGroupId: !Ref rSecurityGroupEC2Back
+      VpcId: !Ref rMYVPC
+      Tags: 
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "SGLoadBalancerBack" ]]
 
-#   rLoadBalancerEc2:
-#     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-#     Properties: 
-#       IpAddressType: ipv4
-#       Name: LoadBalancerEc2 
-#       Scheme: internet-facing
-#       SecurityGroups: 
-#         - !Ref rSecurityGroupLoadBalancer
-#       Subnets: 
-#         - !Ref rSubnetPublica1
-#         - !Ref rSubnetPublica2
-#       Type: application 
-#       Tags:
-#         - Key: Name
-#           Value: !Join ["-", [ Ref: "AWS::StackName" , "LoadBalancerEc2" ]]
 
-#   rTargetGroup:
-#     Type: AWS::ElasticLoadBalancingV2::TargetGroup
-#     Properties: 
-#       HealthCheckIntervalSeconds: 30        #Cantidad aproximada de tiempo, en segundos, que transcurre entre comprobaciones de estado de un destino individual. comprueba cada 30 segundos el html de la instancia
-#       HealthCheckPort: 80                   # Puerto que el balanceador de carga utiliza al realizar comprobaciones de estado en los destinos
-#       HealthCheckProtocol: HTTP             #Protocolo que el balanceador de carga utiliza al realizar comprobaciones de estado en los destinos.
-#       HealthyThresholdCount: 5              #Correcto Número de comprobaciones de estado consecutivas que deben superarse para considerar que un destino con estado incorrecto vuelve a estar en estado correcto.para declarar una instancia no sana debe realizar primero 5 chequeos 
-#       UnhealthyThresholdCount: 5            #Incorrecto Número de comprobaciones de estado consecutivas erróneas para que se considere que el estado de la instancia no es correcto.  Si cinco chequeos concecutivos de 30 segundos comprueba que el index.html esta caido declara la instancia como no sana y deja de enviarle trafico
-#       Name: TargetGroup 
-#       Port: '80'                            #El puerto en el que los destinos reciben tráfico.
-#       Protocol: HTTP                        # El protocolo que hay que usar para el enrutamiento de tráfico a los destinos.
-#       TargetType: instance
-#       VpcId: !Ref rMYVPC
-#       Tags:
-#         - Key: Name
-#           Value: !Join ["-", [ Ref: "AWS::StackName" , "TargetGroup" ]]
+  rLoadBalancerEc2Front:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      IpAddressType: ipv4
+      Name: LoadBalancerEc2Front 
+      Scheme: internet-facing
+      SecurityGroups: 
+        - !Ref rSecurityGroupLoadBalancerFront
+      Subnets: 
+        - !Ref rSubnetPublica1
+        - !Ref rSubnetPublica2
+      Type: application 
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "LoadBalancerEc2Front" ]]
 
-#   rListener:
-#     Type: AWS::ElasticLoadBalancingV2::Listener
-#     Properties: 
-#       DefaultActions: 
-#         - TargetGroupArn: !Ref rTargetGroup # Especifique solo cuando Type es forward.
-#           Type: forward   # https://docs.aws.amazon.com/es_es/elasticloadbalancing/latest/application/load-balancer-listeners.html
-#       LoadBalancerArn: !Ref rLoadBalancerEc2
-#       Port: 80
-#       Protocol: HTTP
+  rLoadBalancerEc2Back:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      IpAddressType: ipv4
+      Name: LoadBalancerEc2Back 
+      Scheme: internal
+      SecurityGroups: 
+        - !Ref rSecurityGroupLoadBalancerBack
+      Subnets: 
+        - !Ref rSubnetPrivada1
+        - !Ref rSubnetPrivada2
+      Type: application 
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "LoadBalancerEc2Back" ]]
 
-#   rLaunchConfiguration:
-#     Type: AWS::AutoScaling::LaunchConfiguration
-#     DependsOn: rAttachmentIG
-#     Properties: 
-#       AssociatePublicIpAddress: true 
-#       IamInstanceProfile: !Ref rPerfilRole
-#       ImageId: !Ref pAMI
-#       InstanceMonitoring: true
-#       InstanceType: !Ref pTipoDeInstancia
-#       LaunchConfigurationName: !Join ["-", [ Ref: "AWS::StackName" , "LaunchConfiguration" ]] 
-#       SecurityGroups: 
-#         - !Ref rSecurityGroupEC2
-#       UserData: !Base64 |   #https://www.base64encode.org/ 
-#         #!/bin/bash -x
-#         yum -y update
-#         yum install httpd -y
-#         service httpd start
-#         chkconfig httpd on
-#         cd /var/www
-#         chmod 777 html
-#         aws s3 cp s3://aw12345-jrperez-bucketweb/imagen1.jpg /var/www/html
-#         aws s3 cp s3://aw12345-jrperez-bucketweb/index.html /var/www/html
 
-#   rAutoScalingGroup:
-#     Type: AWS::AutoScaling::AutoScalingGroup
-#     DependsOn: rAttachmentIG
-#     Properties: 
-#       AutoScalingGroupName: aw12345-jrperez-ASG
-#       Cooldown: 150                         #Cantidad de tiempo, en segundos, que tarda en completarse una actividad de escalado antes de que pueda comenzar la siguiente actividad de escalado. 
-#       DesiredCapacity: 2                   #capacidad inicial del grupo de Auto Scaling en el momento de su creación y la capacidad que intenta conservar
-#       HealthCheckGracePeriod: 300           #La cantidad de tiempo, en segundos, que Auto Scaling de Amazon EC2 espera antes de comprobar el estado de una instancia EC2 que haya entrado en servicio.
-#       HealthCheckType: EC2
-#       LaunchConfigurationName: !Ref rLaunchConfiguration #lanzando la configuración de las instancias
-#       MaxSize: 4 #Maximo de instancias del grupo 
-#       MetricsCollection: 
-#         - Granularity: "1Minute" # Cada minuto envia información a ClowdWatch
-#           Metrics:            #https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-instance-monitoring.html
-#             - "GroupMinSize"
-#             - "GroupMaxSize"
-#             - "GroupDesiredCapacity"
-#             - "GroupInServiceInstances"
-#             - "GroupPendingInstances"
-#             - "GroupStandbyInstances"
-#             - "GroupTerminatingInstances"
-#             - "GroupTotalInstances"
-#       MinSize: 2 #Minimo de instancias del grupo
-#       Tags: 
-#         - 
-#           Key: Name
-#           PropagateAtLaunch: true
-#           Value: !Join ["-", [ Ref: "AWS::StackName" , "ASG" ]]      # Le da el nombre a las instancias
-#       TargetGroupARNs: 
-#         - !Ref rTargetGroup  
-#       VPCZoneIdentifier: #Subnet en las que se desplegaran las instancias
-#         - !Ref rSubnetPublica1
-#         - !Ref rSubnetPublica2
+  rTargetGroupFront:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      HealthCheckIntervalSeconds: 30        #Cantidad aproximada de tiempo, en segundos, que transcurre entre comprobaciones de estado de un destino individual. comprueba cada 30 segundos el html de la instancia
+      HealthCheckPort: 80                   # Puerto que el balanceador de carga utiliza al realizar comprobaciones de estado en los destinos
+      HealthCheckProtocol: HTTP             #Protocolo que el balanceador de carga utiliza al realizar comprobaciones de estado en los destinos.
+      HealthyThresholdCount: 5              #Correcto Número de comprobaciones de estado consecutivas que deben superarse para considerar que un destino con estado incorrecto vuelve a estar en estado correcto.para declarar una instancia no sana debe realizar primero 5 chequeos 
+      UnhealthyThresholdCount: 5            #Incorrecto Número de comprobaciones de estado consecutivas erróneas para que se considere que el estado de la instancia no es correcto.  Si cinco chequeos concecutivos de 30 segundos comprueba que el index.html esta caido declara la instancia como no sana y deja de enviarle trafico
+      Name: TargetGroupFront 
+      Port: '80'                            #El puerto en el que los destinos reciben tráfico.
+      Protocol: HTTP                        # El protocolo que hay que usar para el enrutamiento de tráfico a los destinos.
+      TargetType: instance
+      VpcId: !Ref rMYVPC
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "TargetGroupFront" ]]
 
-#   rScalingPolicyUP:
-#     Type: AWS::AutoScaling::ScalingPolicy
-#     Properties: 
-#       AdjustmentType: ChangeInCapacity  # Cambia la capacidad sin importar cuantas maquinas existan
-#       AutoScalingGroupName: !Ref rAutoScalingGroup
-#       PolicyType: SimpleScaling
-#       ScalingAdjustment: 1 #cantidad de instancias a aumentar
+  rTargetGroupBack:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      HealthCheckIntervalSeconds: 45        #Cantidad aproximada de tiempo, en segundos, que transcurre entre comprobaciones de estado de un destino individual. comprueba cada 30 segundos el html de la instancia
+      HealthCheckPort: 80                   # Puerto que el balanceador de carga utiliza al realizar comprobaciones de estado en los destinos
+      HealthCheckProtocol: HTTP             #Protocolo que el balanceador de carga utiliza al realizar comprobaciones de estado en los destinos.
+      HealthyThresholdCount: 5              #Correcto Número de comprobaciones de estado consecutivas que deben superarse para considerar que un destino con estado incorrecto vuelve a estar en estado correcto.para declarar una instancia no sana debe realizar primero 5 chequeos 
+      UnhealthyThresholdCount: 5            #Incorrecto Número de comprobaciones de estado consecutivas erróneas para que se considere que el estado de la instancia no es correcto.  Si cinco chequeos concecutivos de 30 segundos comprueba que el index.html esta caido declara la instancia como no sana y deja de enviarle trafico
+      Name: TargetGroupBack 
+      Port: '80'                            #El puerto en el que los destinos reciben tráfico.
+      Protocol: HTTP                        # El protocolo que hay que usar para el enrutamiento de tráfico a los destinos.
+      TargetType: instance
+      VpcId: !Ref rMYVPC
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "TargetGroupBack" ]]
 
-#   rScalingPolicyDown:
-#     Type: AWS::AutoScaling::ScalingPolicy
-#     Properties: 
-#       AdjustmentType: ChangeInCapacity  # Cambia la capacidad sin importar cuantas maquinas existan
-#       AutoScalingGroupName: !Ref rAutoScalingGroup
-#       PolicyType: SimpleScaling
-#       ScalingAdjustment: -1 #cantidad de instancias a aumentar
 
-#   rCpuAlarmUP:
-#     Type: AWS::CloudWatch::Alarm
-#     Properties: 
-#       AlarmActions: 
-#         - !Ref rScalingPolicyUP
-#       AlarmDescription: Esta alarma ejecuta una politica de aumento de instancias cuando la CPU es mayor al 60%
-#       AlarmName: CPU mayor al 60%
-#       ComparisonOperator: GreaterThanThreshold  #Mayor que el umbral
-#       Dimensions: 
-#         - Name: AutoScalingGroupName  #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la izquierda  y en value debemos traer el nombre de mi autoscaling
-#           Value: !Ref rAutoScalingGroup
-#       EvaluationPeriods: 2            #Para que la prueba funcione debemos bajar a 1 los periodos y a 1 el % de CPU
-#       MetricName: CPUUtilization      #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la derecha. Corresponde al tipo de metrica que queremos tener
-#       Namespace: AWS/EC2              #acá selecciono el tipo de metrica que voy a utilizar si fuera de Auto Scaling seria AWS/AutoScaling
-#       Period: 60
-#       Statistic: Average
-#       Threshold: 60                   #Porcentaje de CPU 60%
-#       TreatMissingData: missing       #Establece cómo administra esta alarma los puntos de datos que faltan.  La alarma pasa a INSUFFICIENT_DATA
-#       Unit: Percent                   #La unidad de la métrica asociada a la alarma
+  rListenerFront:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions: 
+        - TargetGroupArn: !Ref rTargetGroupFront # Especifique solo cuando Type es forward.
+          Type: forward   # https://docs.aws.amazon.com/es_es/elasticloadbalancing/latest/application/load-balancer-listeners.html
+      LoadBalancerArn: !Ref rLoadBalancerEc2Front
+      Port: 80
+      Protocol: HTTP
 
-#   rCpuAlarmDown:
-#     Type: AWS::CloudWatch::Alarm
-#     Properties: 
-#       AlarmActions: 
-#         - !Ref rScalingPolicyDown
-#       AlarmDescription: Esta alarma ejecuta una politica de disminución de instancias cuando la CPU es menor al 20%
-#       AlarmName: CPU menor al 20%
-#       ComparisonOperator: LessThanThreshold  #Menor que el umbral
-#       Dimensions: 
-#         - Name: AutoScalingGroupName     #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la izquierda  y en value debemos traer el nombre de mi autoscaling
-#           Value: !Ref rAutoScalingGroup
-#       EvaluationPeriods: 2               #Para que la prueba funcione debemos bajar a 1 los periodos y a 1 el % de CPU
-#       MetricName: CPUUtilization         #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la derecha. Corresponde al tipo de metrica que queremos tener
-#       Namespace: AWS/EC2                 #acá selecciono el tipo de metrica que voy a utilizar si fuera de Auto Scaling seria AWS/AutoScaling  
-#       Period: 60
-#       Statistic: Average
-#       Threshold: 20                      #Porcentaje de CPU 20%
-#       TreatMissingData: missing          #Establece cómo administra esta alarma los puntos de datos que faltan.  La alarma pasa a INSUFFICIENT_DATA
-#       Unit: Percent                      #La unidad de la métrica asociada a la alarma
+  rListenerBack:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions: 
+        - TargetGroupArn: !Ref rTargetGroupBack # Especifique solo cuando Type es forward.
+          Type: forward   # https://docs.aws.amazon.com/es_es/elasticloadbalancing/latest/application/load-balancer-listeners.html
+      LoadBalancerArn: !Ref rLoadBalancerEc2Back
+      Port: 80
+      Protocol: HTTP
+
+#------------------------- Auto Scaling -----------------------
+  rLaunchConfigurationFront:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn: rAttachmentIG
+    Properties: 
+      AssociatePublicIpAddress: true 
+      IamInstanceProfile: !Ref rPerfilRole
+      ImageId: !Ref pAMI
+      InstanceMonitoring: true
+      InstanceType: !Ref pTipoDeInstancia
+      LaunchConfigurationName: !Join ["-", [ Ref: "AWS::StackName" , "LaunchConfigurationFront" ]] 
+      SecurityGroups: 
+        - !Ref rSecurityGroupEC2Front
+      UserData: !Base64 |   #https://www.base64encode.org/ 
+        #!/bin/bash -x
+        yum -y update
+        yum install httpd -y
+        service httpd start
+        chkconfig httpd on
+        cd /var/www
+        chmod 777 html
+        aws s3 cp s3://aw12345-jrperez-bucketweb/imagen1.jpg /var/www/html
+        aws s3 cp s3://aw12345-jrperez-bucketweb/index.html /var/www/html
+  
+  rLaunchConfigurationBack:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn: rAttachmentIG
+    Properties: 
+      AssociatePublicIpAddress: true 
+      IamInstanceProfile: !Ref rPerfilRole
+      ImageId: !Ref pAMI
+      InstanceMonitoring: true
+      InstanceType: !Ref pTipoDeInstancia
+      LaunchConfigurationName: !Join ["-", [ Ref: "AWS::StackName" , "LaunchConfigurationBack" ]] 
+      SecurityGroups: 
+        - !Ref rSecurityGroupEC2Back
+      # UserData: !Base64 |   #https://www.base64encode.org/ 
+      #   #!/bin/bash -x
+      #   yum -y update
+      #   yum install httpd -y
+      #   service httpd start
+      #   chkconfig httpd on
+      #   cd /var/www
+      #   chmod 777 html
+      #   aws s3 cp s3://aw12345-jrperez-bucketweb/imagen1.jpg /var/www/html
+      #   aws s3 cp s3://aw12345-jrperez-bucketweb/index.html /var/www/html
+
+  rAutoScalingGroupFront:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: rAttachmentIG
+    Properties: 
+      AutoScalingGroupName: aw12345-jrperez-ASG-Front
+      Cooldown: 150                         #Cantidad de tiempo, en segundos, que tarda en completarse una actividad de escalado antes de que pueda comenzar la siguiente actividad de escalado. 
+      DesiredCapacity: 2                   #capacidad inicial del grupo de Auto Scaling en el momento de su creación y la capacidad que intenta conservar
+      HealthCheckGracePeriod: 300           #La cantidad de tiempo, en segundos, que Auto Scaling de Amazon EC2 espera antes de comprobar el estado de una instancia EC2 que haya entrado en servicio.
+      HealthCheckType: EC2
+      LaunchConfigurationName: !Ref rLaunchConfigurationFront #lanzando la configuración de las instancias
+      MaxSize: 4 #Maximo de instancias del grupo 
+      MetricsCollection: 
+        - Granularity: "1Minute" # Cada minuto envia información a ClowdWatch
+          Metrics:            #https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-instance-monitoring.html
+            - "GroupMinSize"
+            - "GroupMaxSize"
+            - "GroupDesiredCapacity"
+            - "GroupInServiceInstances"
+            - "GroupPendingInstances"
+            - "GroupStandbyInstances"
+            - "GroupTerminatingInstances"
+            - "GroupTotalInstances"
+      MinSize: 2 #Minimo de instancias del grupo
+      Tags: 
+        - 
+          Key: Name
+          PropagateAtLaunch: true
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "ASGFront" ]]      # Le da el nombre a las instancias
+      TargetGroupARNs: 
+        - !Ref rTargetGroupFront  
+      VPCZoneIdentifier: #Subnet en las que se desplegaran las instancias
+        - !Ref rSubnetPublica1
+        - !Ref rSubnetPublica2
+
+
+  rAutoScalingGroupBack:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: rAttachmentIG
+    Properties: 
+      AutoScalingGroupName: aw12345-jrperez-ASG-Back
+      Cooldown: 150                         #Cantidad de tiempo, en segundos, que tarda en completarse una actividad de escalado antes de que pueda comenzar la siguiente actividad de escalado. 
+      DesiredCapacity: 2                   #capacidad inicial del grupo de Auto Scaling en el momento de su creación y la capacidad que intenta conservar
+      HealthCheckGracePeriod: 300           #La cantidad de tiempo, en segundos, que Auto Scaling de Amazon EC2 espera antes de comprobar el estado de una instancia EC2 que haya entrado en servicio.
+      HealthCheckType: EC2
+      LaunchConfigurationName: !Ref rLaunchConfigurationBack #lanzando la configuración de las instancias
+      MaxSize: 4 #Maximo de instancias del grupo 
+      MetricsCollection: 
+        - Granularity: "1Minute" # Cada minuto envia información a ClowdWatch
+          Metrics:            #https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-instance-monitoring.html
+            - "GroupMinSize"
+            - "GroupMaxSize"
+            - "GroupDesiredCapacity"
+            - "GroupInServiceInstances"
+            - "GroupPendingInstances"
+            - "GroupStandbyInstances"
+            - "GroupTerminatingInstances"
+            - "GroupTotalInstances"
+      MinSize: 2 #Minimo de instancias del grupo
+      Tags: 
+        - 
+          Key: Name
+          PropagateAtLaunch: true
+          Value: !Join ["-", [ Ref: "AWS::StackName" , "ASGBack" ]]      # Le da el nombre a las instancias
+      TargetGroupARNs: 
+        - !Ref rTargetGroupBack  
+      VPCZoneIdentifier: #Subnet en las que se desplegaran las instancias
+        - !Ref rSubnetPrivada1
+        - !Ref rSubnetPrivada2
+
+  rScalingPolicyUP:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties: 
+      AdjustmentType: ChangeInCapacity  # Cambia la capacidad sin importar cuantas maquinas existan
+      AutoScalingGroupName: !Ref rAutoScalingGroupFront
+      PolicyType: SimpleScaling
+      ScalingAdjustment: 1 #cantidad de instancias a aumentar
+
+  rScalingPolicyDown:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties: 
+      AdjustmentType: ChangeInCapacity  # Cambia la capacidad sin importar cuantas maquinas existan
+      AutoScalingGroupName: !Ref rAutoScalingGroupFront
+      PolicyType: SimpleScaling
+      ScalingAdjustment: -1 #cantidad de instancias a disminuir
+
+  rCpuAlarmUP:
+    Type: AWS::CloudWatch::Alarm
+    Properties: 
+      AlarmActions: 
+        - !Ref rScalingPolicyUP
+      AlarmDescription: Esta alarma ejecuta una politica de aumento de instancias cuando la CPU es mayor al 60%
+      AlarmName: CPU mayor al 60%
+      ComparisonOperator: GreaterThanThreshold  #Mayor que el umbral
+      Dimensions: 
+        - Name: AutoScalingGroupName  #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la izquierda  y en value debemos traer el nombre de mi autoscaling
+          Value: !Ref rAutoScalingGroupFront
+      EvaluationPeriods: 2            #Para que la prueba funcione debemos bajar a 1 los periodos y a 1 el % de CPU
+      MetricName: CPUUtilization      #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la derecha. Corresponde al tipo de metrica que queremos tener
+      Namespace: AWS/EC2              #acá selecciono el tipo de metrica que voy a utilizar si fuera de Auto Scaling seria AWS/AutoScaling
+      Period: 60
+      Statistic: Average
+      Threshold: 60                   #Porcentaje de CPU 60%
+      TreatMissingData: missing       #Establece cómo administra esta alarma los puntos de datos que faltan.  La alarma pasa a INSUFFICIENT_DATA
+      Unit: Percent                   #La unidad de la métrica asociada a la alarma
+
+  rCpuAlarmDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties: 
+      AlarmActions: 
+        - !Ref rScalingPolicyDown
+      AlarmDescription: Esta alarma ejecuta una politica de disminución de instancias cuando la CPU es menor al 20%
+      AlarmName: CPU menor al 20%
+      ComparisonOperator: LessThanThreshold  #Menor que el umbral
+      Dimensions: 
+        - Name: AutoScalingGroupName     #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la izquierda  y en value debemos traer el nombre de mi autoscaling
+          Value: !Ref rAutoScalingGroupFront
+      EvaluationPeriods: 2               #Para que la prueba funcione debemos bajar a 1 los periodos y a 1 el % de CPU
+      MetricName: CPUUtilization         #Este nombre se toma de cloudwatch, Metrics, EC2, By Auto Scaling Grou. Es el titulo del cuadro de la derecha. Corresponde al tipo de metrica que queremos tener
+      Namespace: AWS/EC2                 #acá selecciono el tipo de metrica que voy a utilizar si fuera de Auto Scaling seria AWS/AutoScaling  
+      Period: 60
+      Statistic: Average
+      Threshold: 20                      #Porcentaje de CPU 20%
+      TreatMissingData: missing          #Establece cómo administra esta alarma los puntos de datos que faltan.  La alarma pasa a INSUFFICIENT_DATA
+      Unit: Percent                      #La unidad de la métrica asociada a la alarma
 
   rdsDBSubnetGroup:
     Type: "AWS::RDS::DBSubnetGroup" #*****  crea un grupo de subredes de base de datos. Los grupos de subredes deben contener al menos dos subredes en dos zonas de disponibilidad diferentes de la misma región.
@@ -417,99 +549,99 @@ Resources:
           Key: Name
           Value: RDSSecurityGroup # Es el nombre que le doy
 
-  # rRDS:
-  #   Type: AWS::RDS::DBInstance
-  #   DependsOn: rdsDBSubnetGroup #***** Definiendo dependencia la RDS solo se comienza a desplegar si la subnet de la RDS ya esta creada
-  #   Properties:
-  #     DBName: TestDB
-  #     Engine: MySQL 
-  #     MasterUsername: MyName
-  #     MasterUserPassword: MyPassword
-  #     DBInstanceClass: db.t2.micro
-  #     DBSecurityGroups: #***** Enviando el grupo de seguridad
-  #     - Ref: rDatabaseSG # Relaciono el RECURSO grupo de seguridad para la RDS
-  #     AllocatedStorage: '5' #***** Definiendo el Storge de la instancia
-  #     DBSubnetGroupName: !Ref rdsDBSubnetGroup #***** Relaciono el RECURSO de la subnet de la RDS
-  #     DBInstanceIdentifier: RDSjrperez
-  #     Tags: 
-  #       - 
-  #         Key: Name
-  #         Value: RDS_jrperez # Es el nombre que le doy  
+  rRDS:
+    Type: AWS::RDS::DBInstance
+    DependsOn: rdsDBSubnetGroup #***** Definiendo dependencia la RDS solo se comienza a desplegar si la subnet de la RDS ya esta creada
+    Properties:
+      DBName: TestDB
+      Engine: MySQL 
+      MasterUsername: MyName
+      MasterUserPassword: MyPassword
+      DBInstanceClass: db.t2.micro
+      DBSecurityGroups: #***** Enviando el grupo de seguridad
+      - Ref: rDatabaseSG # Relaciono el RECURSO grupo de seguridad para la RDS
+      AllocatedStorage: '5' #***** Definiendo el Storge de la instancia
+      DBSubnetGroupName: !Ref rdsDBSubnetGroup #***** Relaciono el RECURSO de la subnet de la RDS
+      DBInstanceIdentifier: RDSjrperez
+      Tags: 
+        - 
+          Key: Name
+          Value: RDS_jrperez # Es el nombre que le doy  
 
-# Outputs:
+Outputs:
 
-#   Message:
-#     Description: Recursos creados
-#     Value: IDs de todos los recursos creados
+  Message:
+    Description: Recursos creados
+    Value: IDs de todos los recursos creados
 
-#   oMYVPC:
-#     Description: Mi VPC
-#     Value: 
-#       Ref: rMYVPC
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "VPC" ]]
+  oMYVPC:
+    Description: Mi VPC
+    Value: 
+      Ref: rMYVPC
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "VPC" ]]
 
-#   oSubnetPublica1:
-#     Description: Mi subnet publica1 en zona 1a
-#     Value: 
-#       Ref: rSubnetPublica1
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "Subnetpublica1" ]]
+  oSubnetPublica1:
+    Description: Mi subnet publica1 en zona 1a
+    Value: 
+      Ref: rSubnetPublica1
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "Subnetpublica1" ]]
 
-#   oSubnetPublica2:
-#     Description: Mi subnet publica2 en zona 1b
-#     Value: 
-#       Ref: rSubnetPublica2
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "Subnetpublica2" ]]
+  oSubnetPublica2:
+    Description: Mi subnet publica2 en zona 1b
+    Value: 
+      Ref: rSubnetPublica2
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "Subnetpublica2" ]]
 
-#   oSecurityGuoupEC2:
-#     Description: Mi segurity group EC2
-#     Value: 
-#       Ref: rSecurityGroupEC2
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "SGec2" ]]
+  oSecurityGuoupEC2:
+    Description: Mi segurity group EC2
+    Value: 
+      Ref: rSecurityGroupEC2Front
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "SGec2" ]]
 
-#   oInternetGatway:
-#     Description: Mi Internet Gatway
-#     Value: 
-#       Ref: rInternetGatway
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "InternetGatway" ]]
+  oInternetGatway:
+    Description: Mi Internet Gatway
+    Value: 
+      Ref: rInternetGatway
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "InternetGatway" ]]
 
-#   oRouteTablePublic:
-#     Description: Mi Route Table Public
-#     Value: 
-#       Ref: rRouteTablePublic
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "RouteTablePublic" ]]
+  oRouteTablePublic:
+    Description: Mi Route Table Public
+    Value: 
+      Ref: rRouteTablePublic
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "RouteTablePublic" ]]
 
-#   oRoleIAM:
-#     Description: Mi Route Table Public
-#     Value: 
-#       Ref: rRoleIAM
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "RoleEc2" ]]
+  oRoleIAM:
+    Description: Mi Route Table Public
+    Value: 
+      Ref: rRoleIAM
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "RoleEc2" ]]
 
-#   oBucketS3:
-#     Description: Mi Bucket S3
-#     Value: 
-#       Ref: rBucketS3
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "bucketweb" ]]
+  oBucketS3:
+    Description: Mi Bucket S3
+    Value: 
+      Ref: rBucketS3
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "bucketweb" ]]
 
-#   oSecurityGuoupLoadBalancer:
-#     Description: Segurity Group Load Balancer
-#     Value: 
-#       Ref: rSecurityGroupLoadBalancer
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "SGALB" ]]
+  oSecurityGuoupLoadBalancer:
+    Description: Segurity Group Load Balancer
+    Value: 
+      Ref: rSecurityGroupLoadBalancerFront
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "SGALB" ]]
 
-#   oLoadBalancerEc2:
-#     Description: Mi LoadBalancer
-#     Value: 
-#       Ref: rLoadBalancerEc2
-#     Export:
-#       Name: !Join ["-", [ Ref: "AWS::StackName" , "LoadBalancerEc2" ]]
+  oLoadBalancerEc2:
+    Description: Mi LoadBalancer
+    Value: 
+      Ref: rLoadBalancerEc2Front
+    Export:
+      Name: !Join ["-", [ Ref: "AWS::StackName" , "LoadBalancerEc2" ]]
 
 
