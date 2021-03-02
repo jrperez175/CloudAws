@@ -128,7 +128,7 @@ Resources:
       GroupName: SG EC2 Back
       SecurityGroupIngress:
       - IpProtocol: -1
-        SourceSecurityGroupId: !Ref rSecurityGroupEC2Front
+        SourceSecurityGroupId: !Ref rSecurityGroupEC2Front  #Revisar si se coloca el trafico entrante del SG de Front o de BalnaceadoBack
       VpcId: !Ref rMYVPC
       Tags: 
         - Key: Name
@@ -485,6 +485,9 @@ Resources:
       PolicyType: SimpleScaling
       ScalingAdjustment: -1 #cantidad de instancias a disminuir
 
+
+#------------------- Alarmas para Ejecutar las politicas de autoScalling---------
+
   rCpuAlarmUP:
     Type: AWS::CloudWatch::Alarm
     Properties: 
@@ -536,6 +539,7 @@ Resources:
         - Key: Name
           Value: RDSSubnet  # Es el nombre que le doy 
 
+#-------------------- Bases de datos -------------------------------
   rDatabaseSG:
     Type: AWS::RDS::DBSecurityGroup
     DependsOn: rMYVPC #***** Estableciendo dependencia, el grupo de seguridad solo se crea si ya esta creda la VPC
