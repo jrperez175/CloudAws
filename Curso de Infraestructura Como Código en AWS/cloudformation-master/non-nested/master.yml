@@ -43,7 +43,7 @@ Parameters:
         Description: Runtime
         Type: String
         Default: python3.7
-        AllowedValues:
+        AllowedValues: #Despliega una lista de valores permitidos
             - python3.7
             - python2.7
             - ruby2.5
@@ -71,7 +71,7 @@ Resources:
         SSESpecification:
           SSEEnabled: true
     
-    RestApiAD:
+    RestApiAD: 
       Type: AWS::ApiGateway::RestApi
       Properties:
         Name: api-platzi
@@ -94,8 +94,8 @@ Resources:
             - StatusCode: 200
               ResponseTemplates: {"application/json": ""}
         OperationName: !Sub ${AWS::AccountId}
-   
-    ApiGatewayResource:
+
+    ApiGatewayResource: # Trabaja en conjunto con el APIRest para responder a las consultas de la BD
       Type: AWS::ApiGateway::Resource
       DependsOn: DynamoPlatzi
       Properties:
@@ -103,7 +103,7 @@ Resources:
         PathPart: 'lambda'
         RestApiId: !Ref RestApiAD
 
-    ApiGatewayModel:
+    ApiGatewayModel: #Se encarga de hacer la respuesta en formato JSON
       Type: AWS::ApiGateway::Model
       DependsOn: DynamoPlatzi
       Properties:
@@ -111,7 +111,7 @@ Resources:
         RestApiId: !Ref RestApiAD
         Schema: {}
 
-    ApiGatewayStage:
+    ApiGatewayStage: #Se encarga de pasar a produccion la Version 0 de la api para que quede desplegada
         Type: AWS::ApiGateway::Stage
         DependsOn: DynamoPlatzi
         Properties:
@@ -120,14 +120,14 @@ Resources:
           RestApiId: !Ref RestApiAD
           StageName: 'v0'
 
-    ApiGatewayDeployment:
+    ApiGatewayDeployment: #Metodos de consula que tiene como referencia la Lamda
       Type: AWS::ApiGateway::Deployment
       DependsOn: Method
       Properties:
         Description: Lambda API Deployment
         RestApiId: !Ref RestApiAD
 
-    ApiGatewayIamRole:
+    ApiGatewayIamRole: #Rol de ApiGateway para que interactue con los otros recursos de aws
       Type: AWS::IAM::Role
       DependsOn: DynamoPlatzi
       Properties:
@@ -168,7 +168,7 @@ Resources:
             Variables:
                 DYNAMO_PLATZI: !Ref DynamoPlatzi
 
-    LambdaPolicyEC2:
+    LambdaPolicyEC2: #Politicas asiganadas a las funcion Lamda sobre EC2
         Type: AWS::IAM::ManagedPolicy
         DependsOn: DynamoPlatzi
         Properties:
@@ -217,7 +217,7 @@ Resources:
                           - ec2:CreateSubnet
                       Resource:
                           - "*"
-    LambdaPolicyDynamo:
+    LambdaPolicyDynamo: #Politicas asiganadas a las funcion Lamda sobre dynamo
         Type: AWS::IAM::ManagedPolicy
         Properties:
             PolicyDocument:
@@ -233,7 +233,7 @@ Resources:
                       Resource:
                           - "*"
 
-    LambdaPolicyCW:
+    LambdaPolicyCW: ##Politicas asiganadas a las funcion Lamda sobre CW
         Type: AWS::IAM::ManagedPolicy
         Properties:
             PolicyDocument:
@@ -248,7 +248,7 @@ Resources:
                       Resource:
                           - "*"
 
-    LambdaRole:
+    LambdaRole: #Se crea el Rol de la lambda
       Type: AWS::IAM::Role
       Properties:
         ManagedPolicyArns:
@@ -286,7 +286,7 @@ Resources:
                           - s3:*
                       Resource:
                           - "*"                          
-    lambdaApiGatewayInvoke:
+    lambdaApiGatewayInvoke: #Permite que el api Gateway pueda disparar la Lamda
       Type: "AWS::Lambda::Permission"
       DependsOn: LambdaFunction
       Properties:

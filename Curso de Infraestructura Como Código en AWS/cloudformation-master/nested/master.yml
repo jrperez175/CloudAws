@@ -60,7 +60,7 @@ Resources:
     dynamo:
         Type: "AWS::CloudFormation::Stack"
         Properties:
-            TemplateURL: https://platzi-cloudformation.s3.us-east-2.amazonaws.com/dynamo.yml
+            TemplateURL: https://jrperez175.s3.amazonaws.com/dynamo.yml
             Parameters:
                 DynamoName: !Ref DynamoName
                 DynamoKey: !Ref DynamoKey
@@ -68,14 +68,14 @@ Resources:
         Type: "AWS::CloudFormation::Stack"
         DependsOn: lambda
         Properties:
-            TemplateURL: https://platzi-cloudformation.s3.us-east-2.amazonaws.com/api.yml     
+            TemplateURL: https://jrperez175.s3.amazonaws.com/api.yml
             Parameters:
                 LambdaFunction: !GetAtt lambda.Outputs.LambdaFunction        
     lambda:
         Type: "AWS::CloudFormation::Stack"
         DependsOn: dynamo
         Properties:
-            TemplateURL: https://platzi-cloudformation.s3.us-east-2.amazonaws.com/lambda.yml
+            TemplateURL: https://jrperez175.s3.amazonaws.com/lambda.yml
             Parameters:
                 LambdaName: !Ref LambdaName
                 LambdaRuntime: !Ref LambdaRuntime
